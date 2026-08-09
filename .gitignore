@@ -1,0 +1,13 @@
+# PlatformIO generated files and dependency cache
+.pio/
+
+# Local IDE state
+.vscode/
+*.code-workspace
+
+# ESP-IDF artifacts from unrelated local experiments
+sdkconfig.*
+
+# OS metadata
+.DS_Store
+Thumbs.db
