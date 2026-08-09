@@ -7,6 +7,7 @@ class Display
 {
 public:
     bool begin();
+    void setRiderName(const char *name);
     void showStarting();
     void showCalibrating(uint8_t sampleCount, uint8_t totalSamples);
     void showReady();
@@ -19,5 +20,6 @@ private:
     void showHeader();
 
     Adafruit_SSD1306 oled_{128, 64, &Wire, -1};
+    char riderName_[10] = "ANON";
     bool initialized_ = false;
 };

@@ -5,7 +5,7 @@
 
 RiderRegistry::RiderRegistry()
 {
-    strcpy(anonymous_.name, "Anonymous Rider");
+    strcpy(anonymous_.name, "ANON");
 }
 
 bool RiderRegistry::add(const char *name, uint32_t &newId)

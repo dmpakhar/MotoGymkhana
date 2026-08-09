@@ -1,5 +1,6 @@
 #include "Display.h"
 
+#include <string.h>
 #include <Wire.h>
 
 #include "config/Config.h"
@@ -20,8 +21,22 @@ bool Display::begin()
 void Display::showHeader()
 {
     oled_.setTextSize(1);
-    oled_.setCursor(25, 0);
-    oled_.println("MOTO TIMER");
+    oled_.setCursor(0, 0);
+    oled_.print("MOTO TIMER");
+    oled_.setCursor(70, 0);
+    oled_.print(riderName_);
+}
+
+void Display::setRiderName(const char *name)
+{
+    if (name == nullptr || *name == '\0')
+    {
+        strcpy(riderName_, "ANON");
+        return;
+    }
+
+    strncpy(riderName_, name, sizeof(riderName_) - 1);
+    riderName_[sizeof(riderName_) - 1] = '\0';
 }
 
 void Display::showStarting()

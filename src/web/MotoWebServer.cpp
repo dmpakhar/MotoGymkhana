@@ -85,6 +85,11 @@ bool MotoWebServer::isSensorSetupActive() const
     return sensorSetupActive_;
 }
 
+const char *MotoWebServer::displayRiderName() const
+{
+    return riderForStatus().name;
+}
+
 void MotoWebServer::handleClient()
 {
     server_.handleClient();
@@ -163,7 +168,7 @@ void MotoWebServer::handleRiders()
     size_t used = snprintf(
         response,
         sizeof(response),
-        "{\"selectedId\":%lu,\"riders\":[{\"id\":0,\"name\":\"Anonymous Rider\",\"sessionBestMs\":%lu}",
+        "{\"selectedId\":%lu,\"riders\":[{\"id\":0,\"name\":\"ANON\",\"sessionBestMs\":%lu}",
         static_cast<unsigned long>(riders_.selected().id),
         static_cast<unsigned long>(riders_.find(0).sessionBestMs));
 
@@ -212,7 +217,7 @@ void MotoWebServer::handleRemoveRider()
     const uint32_t riderId = server_.hasArg("id") ? strtoul(server_.arg("id").c_str(), nullptr, 10) : 0;
     if (riderId == 0)
     {
-        server_.send(400, "application/json", "{\"error\":\"Anonymous Rider cannot be removed.\"}");
+        server_.send(400, "application/json", "{\"error\":\"ANON cannot be removed.\"}");
         return;
     }
 

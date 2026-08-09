@@ -92,6 +92,7 @@ void loop()
     }
 
     const GateEvent gateEvent = gateDetector.update(distanceMm, nowMs);
+    display.setRiderName(webServer.displayRiderName());
 
     if (!gateDetector.isCalibrated())
     {

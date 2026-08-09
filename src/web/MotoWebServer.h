@@ -15,6 +15,7 @@ public:
     void recordAttempt(uint32_t durationMs);
     bool takeGateLimitUpdate(int16_t &limitMm);
     bool isSensorSetupActive() const;
+    const char *displayRiderName() const;
     void updateStatus(
         int16_t distanceMm,
         int16_t filteredDistanceMm,
