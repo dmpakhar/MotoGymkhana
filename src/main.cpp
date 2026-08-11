@@ -58,10 +58,23 @@ void setup()
         return;
     }
 
-    Serial.print("Wi-Fi AP: ");
+    Serial.println("Wi-Fi AP started");
+    Serial.print("SSID: ");
     Serial.println(Config::kWifiAccessPointName);
-    Serial.print("Open: http://");
+    Serial.print("IP: ");
     Serial.println(WiFi.softAPIP());
+    if (webServer.isMdnsStarted())
+    {
+        Serial.println("mDNS started");
+        Serial.println("Hostname: gymio.local");
+        Serial.println("Open: http://gymio.local");
+    }
+    else
+    {
+        Serial.println("mDNS initialization failed");
+        Serial.print("Open: http://");
+        Serial.println(WiFi.softAPIP());
+    }
 }
 
 void loop()

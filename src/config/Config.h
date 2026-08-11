@@ -29,6 +29,7 @@ constexpr uint32_t kResultDisplayMs = 5000;
 
 // Local phone connection. Change the password before using the timer around
 // other people; WPA2 passwords must be at least eight characters.
-constexpr char kWifiAccessPointName[] = "MotoTimer";
-constexpr char kWifiAccessPointPassword[] = "mototimer";
+constexpr char kWifiAccessPointName[] = "Gymio";
+constexpr char kWifiAccessPointPassword[] = "gymio123";
+constexpr char kMdnsHostname[] = "gymio";
 } // namespace Config

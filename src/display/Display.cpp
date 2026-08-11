@@ -22,7 +22,7 @@ void Display::showHeader()
 {
     oled_.setTextSize(1);
     oled_.setCursor(0, 0);
-    oled_.print("MOTO TIMER");
+    oled_.print("GYMIO");
     oled_.setCursor(70, 0);
     oled_.print(riderName_);
 }
@@ -77,8 +77,9 @@ void Display::showCalibrating(uint8_t sampleCount, uint8_t totalSamples)
     }
 
     oled_.clearDisplay();
-    showHeader();
     oled_.setTextSize(1);
+    oled_.setCursor(18, 0);
+    oled_.println("GYMIO by dpakhar");
     oled_.setCursor(20, 26);
     oled_.println("CALIBRATING GATE");
     oled_.setCursor(42, 42);
@@ -176,7 +177,7 @@ void Display::showError(const char *message)
     oled_.clearDisplay();
     oled_.setTextSize(1);
     oled_.setCursor(0, 0);
-    oled_.println("MOTO TIMER ERROR");
+    oled_.println("GYMIO ERROR");
     oled_.setCursor(0, 24);
     oled_.println(message);
     oled_.display();

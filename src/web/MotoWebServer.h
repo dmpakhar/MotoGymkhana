@@ -11,6 +11,7 @@ class MotoWebServer
 public:
     bool begin();
     void handleClient();
+    bool isMdnsStarted() const;
     void beginAttempt();
     void recordAttempt(uint32_t durationMs);
     bool takeGateLimitUpdate(int16_t &limitMm);
@@ -43,6 +44,7 @@ private:
         uint32_t number;
         uint32_t durationMs;
         Rider rider;
+        bool valid;
     } history_[kHistoryCapacity]{};
     uint8_t historyCount_ = 0;
     uint8_t nextHistoryIndex_ = 0;
@@ -53,10 +55,12 @@ private:
     bool gateLimitUpdatePending_ = false;
     int16_t pendingGateLimitMm_ = -1;
     bool sensorSetupActive_ = false;
+    bool mdnsStarted_ = false;
 
     void handleRoot();
     void handleStatus();
     void handleHistory();
+    void handleInvalidateAttempt();
     void handleRiders();
     void handleAddRider();
     void handleSelectRider();
@@ -65,6 +69,7 @@ private:
     void handleUseCurrentGateLimit();
     void handleSensorSetup();
     const Rider &riderForStatus() const;
+    uint32_t bestForRider(uint32_t riderId) const;
     const char *timerStateText() const;
 
     WebServer server_{80};
