@@ -14,8 +14,8 @@ const $=id=>document.getElementById(id),distance=$('distance'),distanceUnit=$('d
 const f=v=>{const m=Math.floor(v/60000),s=Math.floor(v/1000)%60,ms=v%1000;return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+String(ms).padStart(3,'0')};
 async function api(url,options){const r=await fetch(url,options);if(!r.ok)throw new Error((await r.json()).error||'Request failed');return r.json()}
 function renderRiders(data){$('selectedRider').textContent=data.riders.find(r=>r.id===data.selectedId).name;riderList.replaceChildren();data.riders.forEach(r=>{const option=document.createElement('div');option.className='rider-option';const b=document.createElement('button');b.className='rider'+(r.id===data.selectedId?' selected':'');b.textContent=r.name;b.onclick=async()=>{await api('/api/riders/select',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+r.id});refresh()};option.appendChild(b);if(r.id!==0){const remove=document.createElement('button');remove.className='rider-delete';remove.textContent='×';remove.setAttribute('aria-label','Remove '+r.name);remove.onclick=async()=>{if(confirm('Remove rider '+r.name+'?')){try{await api('/api/riders?id='+r.id,{method:'DELETE'});refresh()}catch(e){connection.textContent=e.message}}};option.appendChild(remove)}riderList.appendChild(option)})}
-async function invalidateAttempt(number){if(!confirm('Mark attempt '+number+' as invalid? It will be excluded from best times.'))return;try{await api('/api/attempts/invalidate',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'number='+number});refresh()}catch(err){connection.textContent=err.message}}
-async function refresh(){try{const [s,h,r]=await Promise.all([api('/api/status'),api('/api/history'),api('/api/riders')]);distance.textContent=s.distanceMm<0?'∞':s.distanceMm;distanceUnit.textContent=s.distanceMm<0?'':'mm';filtered.textContent=s.filteredDistanceMm<0?'—':s.filteredDistanceMm;trigger.textContent=s.triggerDistanceMm<0?'—':s.triggerDistanceMm;if(document.activeElement!==gateLimit)gateLimit.value=s.triggerDistanceMm>=0?s.triggerDistanceMm:'';gateLimit.disabled=!s.sensorSetupActive;$('gateLimitForm').querySelectorAll('button').forEach(b=>b.disabled=!s.sensorSetupActive);setupButton.textContent=s.sensorSetupActive?'Finish Sensor Setup':'Enable Sensor Setup';setupButton.classList.toggle('active',s.sensorSetupActive);setupButton.disabled=!s.calibrated&& !s.sensorSetupActive;state.textContent=s.sensorSetupActive?'SENSOR SETUP':s.state;time.textContent=f(s.timeMs);$('timerRider').textContent=s.riderName;$('best').textContent=s.sessionBestMs?f(s.sessionBestMs):'—';$('bestLabel').textContent=s.riderName+' · session best';connection.textContent=s.sensorSetupActive?'Sensor Setup: attempts blocked.':s.calibrated?'Live':'Calibrating gate…';historyList.innerHTML=h.attempts.length?h.attempts.map(a=>'<li style="'+(a.valid?'':'opacity:.45;text-decoration:line-through')+'"><span>Attempt '+a.number+'<small>'+a.riderName+(a.valid?'':' · INVALID')+'</small></span><span><strong>'+f(a.durationMs)+'</strong>'+(a.valid?'<button style="margin-left:10px" onclick="invalidateAttempt('+a.number+')">Invalid</button>':'')+'</span></li>').join(''):'<li class="empty">No completed attempts yet</li>';renderRiders(r)}catch(e){connection.textContent=e.message||'Connection lost'}}$('riderForm').onsubmit=async e=>{e.preventDefault();const input=$('riderName');try{await api('/api/riders',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'name='+encodeURIComponent(input.value)});input.value='';refresh()}catch(err){connection.textContent=err.message}};$('gateLimitForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/gate/limit',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'limit='+encodeURIComponent(gateLimit.value)});refresh()}catch(err){connection.textContent=err.message}};$('useCurrentLimit').onclick=async()=>{try{await api('/api/gate/limit/current',{method:'POST'});refresh()}catch(err){connection.textContent=err.message}};setupButton.onclick=async()=>{if(!setupButton.classList.contains('active')&&!confirm('Enter Sensor Setup? Attempts will be blocked until you finish setup.'))return;try{await api('/api/sensor-setup',{method:'POST'});refresh()}catch(err){connection.textContent=err.message}};refresh();setInterval(refresh,500);
+async function setAttemptValidity(number,valid){const action=valid?'revalidate':'invalidate';if(!confirm((valid?'Revalidate':'Invalidate')+' attempt '+number+'?'+(valid?' It will be eligible for best times again.':' It will be excluded from best times.')))return;try{await api('/api/attempts/'+action,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'number='+number});refresh()}catch(err){connection.textContent=err.message}}
+async function refresh(){try{const [s,h,r]=await Promise.all([api('/api/status'),api('/api/history'),api('/api/riders')]);distance.textContent=s.distanceMm<0?'∞':s.distanceMm;distanceUnit.textContent=s.distanceMm<0?'':'mm';filtered.textContent=s.filteredDistanceMm<0?'—':s.filteredDistanceMm;trigger.textContent=s.triggerDistanceMm<0?'—':s.triggerDistanceMm;if(document.activeElement!==gateLimit)gateLimit.value=s.triggerDistanceMm>=0?s.triggerDistanceMm:'';gateLimit.disabled=!s.sensorSetupActive;$('gateLimitForm').querySelectorAll('button').forEach(b=>b.disabled=!s.sensorSetupActive);setupButton.textContent=s.sensorSetupActive?'Finish Sensor Setup':'Enable Sensor Setup';setupButton.classList.toggle('active',s.sensorSetupActive);setupButton.disabled=!s.calibrated&& !s.sensorSetupActive;state.textContent=s.sensorSetupActive?'SENSOR SETUP':s.state;time.textContent=f(s.timeMs);$('timerRider').textContent=s.riderName;$('best').textContent=s.sessionBestMs?f(s.sessionBestMs):'—';$('bestLabel').textContent=s.riderName+' · session best';connection.textContent=s.sensorSetupActive?'Sensor Setup: attempts blocked.':s.calibrated?'Live':'Calibrating gate…';historyList.innerHTML=h.attempts.length?h.attempts.map(a=>'<li style="'+(a.valid?'':'opacity:.45;text-decoration:line-through')+'"><span>Attempt '+a.number+'<small>'+a.riderName+(a.valid?'':' · INVALID')+'</small></span><span><strong>'+f(a.durationMs)+'</strong>'+(a.valid?'<button style="margin-left:10px" onclick="setAttemptValidity('+a.number+',false)">Invalidate</button>':'<button style="margin-left:10px" onclick="setAttemptValidity('+a.number+',true)">Revalidate</button>')+'</span></li>').join(''):'<li class="empty">No completed attempts yet</li>';renderRiders(r)}catch(e){connection.textContent=e.message||'Connection lost'}}$('riderForm').onsubmit=async e=>{e.preventDefault();const input=$('riderName');try{await api('/api/riders',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'name='+encodeURIComponent(input.value)});input.value='';refresh()}catch(err){connection.textContent=err.message}};$('gateLimitForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/gate/limit',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'limit='+encodeURIComponent(gateLimit.value)});refresh()}catch(err){connection.textContent=err.message}};$('useCurrentLimit').onclick=async()=>{try{await api('/api/gate/limit/current',{method:'POST'});refresh()}catch(err){connection.textContent=err.message}};setupButton.onclick=async()=>{if(!setupButton.classList.contains('active')&&!confirm('Enter Sensor Setup? Attempts will be blocked until you finish setup.'))return;try{await api('/api/sensor-setup',{method:'POST'});refresh()}catch(err){connection.textContent=err.message}};refresh();setInterval(refresh,500);
 </script></body></html>
 )HTML";
 } // namespace
@@ -31,6 +31,7 @@ bool MotoWebServer::begin()
     server_.on("/api/status", HTTP_GET, [this]() { handleStatus(); });
     server_.on("/api/history", HTTP_GET, [this]() { handleHistory(); });
     server_.on("/api/attempts/invalidate", HTTP_POST, [this]() { handleInvalidateAttempt(); });
+    server_.on("/api/attempts/revalidate", HTTP_POST, [this]() { handleRevalidateAttempt(); });
     server_.on("/api/riders", HTTP_GET, [this]() { handleRiders(); });
     server_.on("/api/riders", HTTP_POST, [this]() { handleAddRider(); });
     server_.on("/api/riders", HTTP_DELETE, [this]() { handleRemoveRider(); });
@@ -180,6 +181,16 @@ void MotoWebServer::handleHistory()
 
 void MotoWebServer::handleInvalidateAttempt()
 {
+    handleSetAttemptValidity(false);
+}
+
+void MotoWebServer::handleRevalidateAttempt()
+{
+    handleSetAttemptValidity(true);
+}
+
+void MotoWebServer::handleSetAttemptValidity(bool valid)
+{
     if (!server_.hasArg("number"))
     {
         server_.send(400, "application/json", "{\"error\":\"Missing attempt number.\"}");
@@ -193,13 +204,16 @@ void MotoWebServer::handleInvalidateAttempt()
         Attempt &attempt = history_[index];
         if (attempt.number == number)
         {
-            if (!attempt.valid)
+            if (attempt.valid == valid)
             {
-                server_.send(409, "application/json", "{\"error\":\"Attempt is already invalid.\"}");
+                server_.send(
+                    409,
+                    "application/json",
+                    valid ? "{\"error\":\"Attempt is already valid.\"}" : "{\"error\":\"Attempt is already invalid.\"}");
                 return;
             }
 
-            attempt.valid = false;
+            attempt.valid = valid;
             server_.send(200, "application/json", "{\"ok\":true}");
             return;
         }

@@ -61,6 +61,8 @@ private:
     void handleStatus();
     void handleHistory();
     void handleInvalidateAttempt();
+    void handleRevalidateAttempt();
+    void handleSetAttemptValidity(bool valid);
     void handleRiders();
     void handleAddRider();
     void handleSelectRider();
