@@ -8,11 +8,32 @@ RiderRegistry::RiderRegistry()
     strcpy(anonymous_.name, "ANON");
 }
 
-bool RiderRegistry::add(const char *name, uint32_t &newId)
+bool RiderRegistry::add(const char *name, const char *clientId, uint32_t &newId)
 {
     if (name == nullptr || count_ == kMaximumRiders)
     {
         return false;
+    }
+
+    const size_t clientIdLength = clientId == nullptr ? 0 : strlen(clientId);
+    if (clientIdLength > 0)
+    {
+        if (clientIdLength < 8 || clientIdLength >= sizeof(Rider::clientId))
+        {
+            return false;
+        }
+        for (size_t i = 0; i < clientIdLength; ++i)
+        {
+            const unsigned char value = static_cast<unsigned char>(clientId[i]);
+            if (!isalnum(value) && value != '-' && value != '_')
+            {
+                return false;
+            }
+        }
+        if (findByClientId(clientId).id != 0)
+        {
+            return false;
+        }
     }
 
     char normalizedName[25]{};
@@ -60,6 +81,10 @@ bool RiderRegistry::add(const char *name, uint32_t &newId)
     Rider &rider = riders_[count_++];
     rider.id = nextId_++;
     strcpy(rider.name, normalizedName);
+    if (clientIdLength > 0)
+    {
+        strcpy(rider.clientId, clientId);
+    }
     newId = rider.id;
     return true;
 }
@@ -146,6 +171,21 @@ const Rider &RiderRegistry::find(uint32_t id) const
         for (uint8_t i = 0; i < count_; ++i)
         {
             if (riders_[i].id == id)
+            {
+                return riders_[i];
+            }
+        }
+    }
+    return anonymous_;
+}
+
+const Rider &RiderRegistry::findByClientId(const char *clientId) const
+{
+    if (clientId != nullptr && clientId[0] != '\0')
+    {
+        for (uint8_t i = 0; i < count_; ++i)
+        {
+            if (strcmp(riders_[i].clientId, clientId) == 0)
             {
                 return riders_[i];
             }

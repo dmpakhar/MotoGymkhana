@@ -6,9 +6,17 @@
 
 bool ToFSensor::begin()
 {
-    Wire1.begin(Config::kTofSdaPin, Config::kTofSclPin);
+#if defined(GYMIO_TARGET_ESP32_S3)
+    // Existing S3 wiring keeps the sensor on a dedicated hardware I2C bus.
+    TwoWire &tofWire = Wire1;
+#else
+    // C3 shares its single I2C bus with the OLED; device addresses differ.
+    TwoWire &tofWire = Wire;
+#endif
 
-    if (!sensor_.begin(Config::kTofAddress, &Wire1))
+    tofWire.begin(Config::kTofSdaPin, Config::kTofSclPin);
+
+    if (!sensor_.begin(Config::kTofAddress, &tofWire))
     {
         return false;
     }

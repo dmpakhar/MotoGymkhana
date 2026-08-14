@@ -10,5 +10,18 @@ public:
     bool readDistance(int16_t &distanceMm);
 
 private:
-    Adafruit_VL53L1X sensor_;
+    // The library forwards its optional default IRQ value through an unsigned
+    // parameter to a base class. Disable that inherited GPIO explicitly; GPIO1
+    // and XSHUT are intentionally not connected on this module.
+    class Sensor final : public Adafruit_VL53L1X
+    {
+    public:
+        Sensor()
+            : Adafruit_VL53L1X()
+        {
+            gpio0 = -1;
+        }
+    };
+
+    Sensor sensor_;
 };

@@ -3,6 +3,7 @@
 #include <WiFi.h>
 
 #include "config/Config.h"
+#include "config/Version.h"
 #include "display/Display.h"
 #include "gate/GateDetector.h"
 #include "timer/SingleGateTimer.h"
@@ -35,6 +36,9 @@ void setup()
 {
     Serial.begin(115200);
     delay(1000); // Allows a USB serial monitor to attach during boot.
+
+    Serial.print("Gymio v");
+    Serial.println(Version::kString);
 
     if (!display.begin())
     {
@@ -162,6 +166,8 @@ void loop()
     switch (timer.state())
     {
     case TimerState::Ready:
+        // Keep the live display stable. GateDetector maintains a rolling
+        // average while still receiving every raw sample for gate decisions.
         display.showDistance(gateDetector.filteredDistanceMm());
         break;
     case TimerState::RunningAwaitingClear:

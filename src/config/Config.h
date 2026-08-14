@@ -4,12 +4,24 @@
 
 namespace Config
 {
-constexpr uint8_t kOledSdaPin = 8;
-constexpr uint8_t kOledSclPin = 9;
-constexpr uint8_t kOledAddress = 0x3C;
-
+#if defined(GYMIO_TARGET_ESP32_S3)
+// Existing ESP32-S3 prototype wiring: two physically separate I2C buses.
+constexpr uint8_t kOledSdaPin = 10;
+constexpr uint8_t kOledSclPin = 11;
+// Kept on a separate I2C bus so GPIO4/GPIO5 can be ruled out while
+// diagnosing the original ESP32-S3 wiring.
+constexpr uint8_t kTofSdaPin = 6;
+constexpr uint8_t kTofSclPin = 7;
+#else
+// ESP32-C3 uses one shared I2C bus. The devices have different addresses.
+constexpr uint8_t kOledSdaPin = 4;
+constexpr uint8_t kOledSclPin = 5;
 constexpr uint8_t kTofSdaPin = 4;
 constexpr uint8_t kTofSclPin = 5;
+#endif
+
+constexpr uint8_t kOledAddress = 0x3C;
+
 constexpr uint8_t kTofAddress = 0x29;
 constexpr uint16_t kTofTimingBudgetMs = 50;
 

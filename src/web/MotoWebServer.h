@@ -58,6 +58,7 @@ private:
     bool mdnsStarted_ = false;
 
     void handleRoot();
+    void handleRiderRoot();
     void handleStatus();
     void handleHistory();
     void handleInvalidateAttempt();
@@ -66,6 +67,8 @@ private:
     void handleRiders();
     void handleAddRider();
     void handleSelectRider();
+    void handlePrepareRider();
+    void handleLogoutRider();
     void handleRemoveRider();
     void handleSetGateLimit();
     void handleUseCurrentGateLimit();
