@@ -1,5 +1,8 @@
 # Development and releases
 
+For complete device-specific build, upload, port-selection, and monitoring
+instructions, see [Build and flash Gymio](BUILD.md).
+
 ## PlatformIO environments
 
 | Environment | Hardware |

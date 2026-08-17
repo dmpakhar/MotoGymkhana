@@ -63,6 +63,7 @@ live TFT application. Both devices must use the same channel configured by
 - [User guide and web pages](docs/USER_GUIDE.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Development, diagnostics, and releases](docs/DEVELOPMENT.md)
+- [Build and flash guide](docs/BUILD.md)
 - [TFT display and ESP-NOW](docs/TFT_DISPLAY.md)
 - [HTTP API](docs/API.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)

@@ -4,6 +4,11 @@ All notable changes are documented here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+### Documentation
+
+- Added separate build and flash workflows for both ESP32-S3 gate variants and
+  the ESP32-C3 TFT module.
+
 ## 0.2.0 - 2026-08-17
 
 ### Added
