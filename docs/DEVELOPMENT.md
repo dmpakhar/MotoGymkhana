@@ -34,11 +34,11 @@ pio device monitor -b 115200
 Diagnostic source files live in `src/diagnostics` and are guarded by build-time
 macros so they do not replace the production `setup()` and `loop()` accidentally.
 
-### ESP32-C3 ST7796S hardware test
+### ESP32-C3 ST7796S display application
 
-The `tft-hardware-test` environment is intentionally isolated with
-`build_src_filter`; it compiles only `C3St7796TftTest.cpp`. Build, upload, and
-monitor it with:
+The TFT application lives in `src/tft`. The `tft-hardware-test` environment is
+intentionally isolated with `build_src_filter`; it compiles only
+`tft/GymioTftDisplay.cpp`. Build, upload, and monitor it with:
 
 ```sh
 pio run -e tft-hardware-test
@@ -46,12 +46,12 @@ pio run -e tft-hardware-test -t upload
 pio device monitor -b 115200
 ```
 
-The test uses LovyanGFX, write-only SPI at 20 MHz, and a 480x320 landscape view.
-It joins the start gate's `Gymio` access point and polls `/api/status` at
-`192.168.4.1` twice per second. It shows the active rider, current/result time,
-and rider best, or a waiting screen while the start gate is unavailable. No
-sensor, local timer, distance, framebuffer, touch, or other production Gymio
-code is included.
+The application uses LovyanGFX, write-only SPI at 20 MHz, and a 480x320
+landscape view. It joins the start gate's `Gymio` access point and receives live
+timer status over UDP. It shows the active rider, current/result time, absolute
+best time and best rider, or a waiting screen while the start gate is
+unavailable. No sensor, local timer, distance, touch, or gate application code
+is included.
 
 | Macro | Diagnostic |
 | --- | --- |
