@@ -47,8 +47,9 @@ pio device monitor -b 115200
 ```
 
 The application uses LovyanGFX, write-only SPI at 20 MHz, and a 480x320
-landscape view. It joins the start gate's `Gymio` access point and receives live
-timer status over UDP. It shows the active rider, current/result time, absolute
+landscape view. It receives live timer status from the start gate over
+broadcast ESP-NOW on the configured access-point channel; it does not join the
+phone Wi-Fi network. It shows the active rider, current/result time, absolute
 best time and best rider, or a waiting screen while the start gate is
 unavailable. No sensor, local timer, distance, touch, or gate application code
 is included.

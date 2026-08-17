@@ -2,10 +2,12 @@
 
 #include <ESPmDNS.h>
 #include <WiFi.h>
+#include <esp_now.h>
 #include <esp_wifi.h>
 
 #include "config/Config.h"
 #include "config/Version.h"
+#include "protocol/DisplayStatusProtocol.h"
 
 namespace
 {
@@ -35,6 +37,9 @@ function renderHistory(data,riderData){if(document.activeElement&&document.activ
 async function refresh(){try{const [s,h,r]=await Promise.all([api('/api/status'),api('/api/history'),api('/api/riders')]);distance.textContent=s.distanceMm<0?'∞':s.distanceMm;distanceUnit.textContent=s.distanceMm<0?'':'mm';filtered.textContent=s.filteredDistanceMm<0?'—':s.filteredDistanceMm;trigger.textContent=s.triggerDistanceMm<0?'—':s.triggerDistanceMm;if(document.activeElement!==gateLimit)gateLimit.value=s.triggerDistanceMm>=0?s.triggerDistanceMm:'';gateLimit.disabled=!s.sensorSetupActive;$('gateLimitForm').querySelectorAll('button').forEach(b=>b.disabled=!s.sensorSetupActive);setupButton.textContent=s.sensorSetupActive?'Finish Sensor Setup':'Enable Sensor Setup';setupButton.classList.toggle('active',s.sensorSetupActive);setupButton.disabled=!s.calibrated&& !s.sensorSetupActive;state.textContent=s.sensorSetupActive?'SENSOR SETUP':s.state;time.textContent=f(s.timeMs);$('timerRider').textContent=s.riderName;$('best').textContent=s.absoluteBestMs?f(s.absoluteBestMs):'—';$('bestLabel').textContent='Absolute best · '+(s.absoluteBestMs?s.absoluteBestRider:'—');connection.textContent=s.sensorSetupActive?'Sensor Setup: attempts blocked.':s.calibrated?'Live · v'+s.version:'Calibrating gate…';renderHistory(h,r);renderRiders(r)}catch(e){connection.textContent=e.message||'Connection lost'}}$('riderForm').onsubmit=async e=>{e.preventDefault();const input=$('riderName');try{await api('/api/riders',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'name='+encodeURIComponent(input.value)});input.value='';refresh()}catch(err){connection.textContent=err.message}};$('gateLimitForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/gate/limit',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'limit='+encodeURIComponent(gateLimit.value)});refresh()}catch(err){connection.textContent=err.message}};$('useCurrentLimit').onclick=async()=>{try{await api('/api/gate/limit/current',{method:'POST'});refresh()}catch(err){connection.textContent=err.message}};setupButton.onclick=async()=>{if(!setupButton.classList.contains('active')&&!confirm('Enter Sensor Setup? Attempts will be blocked until you finish setup.'))return;try{await api('/api/sensor-setup',{method:'POST'});refresh()}catch(err){connection.textContent=err.message}};refresh();setInterval(refresh,500);
 </script></body></html>
 )HTML";
+
+constexpr uint8_t kEspNowBroadcastAddress[ESP_NOW_ETH_ALEN] = {
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 } // namespace
 
 bool MotoWebServer::begin()
@@ -83,10 +88,17 @@ bool MotoWebServer::begin()
     server_.on("/api/sensor-setup", HTTP_POST, [this]() { handleSensorSetup(); });
     server_.onNotFound([this]() { server_.send(404, "text/plain", "Not found"); });
     server_.begin();
-    if (!displayUdp_.begin(Config::kDisplayStatusPort + 1))
+    if (esp_now_init() == ESP_OK)
     {
-        Serial.println("Display UDP sender initialization failed.");
+        esp_now_peer_info_t displayPeer{};
+        memcpy(displayPeer.peer_addr, kEspNowBroadcastAddress, ESP_NOW_ETH_ALEN);
+        displayPeer.channel = Config::kWifiAccessPointChannel;
+        displayPeer.ifidx = WIFI_IF_AP;
+        displayPeer.encrypt = false;
+        espNowReady_ = esp_now_add_peer(&displayPeer) == ESP_OK;
     }
+    Serial.println(espNowReady_ ? "Display ESP-NOW broadcaster ready."
+                                : "Display ESP-NOW broadcaster initialization failed.");
 
     mdnsStarted_ = MDNS.begin(Config::kMdnsHostname);
     if (mdnsStarted_)
@@ -186,20 +198,21 @@ void MotoWebServer::broadcastDisplayStatus()
     lastDisplayBroadcastMs_ = nowMs;
 
     const uint32_t timeMs = status_.timerState == TimerState::Result ? status_.resultMs : status_.elapsedMs;
-    char payload[192];
-    snprintf(
-        payload,
-        sizeof(payload),
-        "{\"state\":\"%s\",\"timeMs\":%lu,\"riderName\":\"%s\",\"absoluteBestMs\":%lu,\"absoluteBestRider\":\"%s\"}",
-        timerStateText(),
-        static_cast<unsigned long>(timeMs),
-        riderForStatus().name,
-        static_cast<unsigned long>(absoluteBest()),
-        absoluteBestRiderName());
+    if (!espNowReady_)
+    {
+        return;
+    }
 
-    displayUdp_.beginPacket(IPAddress(192, 168, 4, 255), Config::kDisplayStatusPort);
-    displayUdp_.write(reinterpret_cast<const uint8_t *>(payload), strlen(payload));
-    displayUdp_.endPacket();
+    DisplayStatusProtocol::Frame frame;
+    frame.sequence = ++displaySequence_;
+    frame.timeMs = timeMs;
+    frame.absoluteBestMs = absoluteBest();
+    strlcpy(frame.state, timerStateText(), sizeof(frame.state));
+    strlcpy(frame.riderName, riderForStatus().name, sizeof(frame.riderName));
+    strlcpy(frame.absoluteBestRider, absoluteBestRiderName(), sizeof(frame.absoluteBestRider));
+    esp_now_send(kEspNowBroadcastAddress,
+                 reinterpret_cast<const uint8_t *>(&frame),
+                 sizeof(frame));
 }
 
 void MotoWebServer::handleRoot()

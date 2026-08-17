@@ -47,7 +47,6 @@ constexpr uint8_t kWifiAccessPointChannel = 1;
 // ESP32-S3 SoftAP SDK maximum. Infrastructure modules use static IPs so they
 // do not consume the smaller dynamic DHCP lease pool.
 constexpr uint8_t kWifiAccessPointMaxConnections = 15;
-constexpr uint16_t kDisplayStatusPort = 4210;
 constexpr uint16_t kDisplayBroadcastIntervalMs = 100;
 constexpr char kMdnsHostname[] = "gymio";
 } // namespace Config
