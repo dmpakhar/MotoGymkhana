@@ -1,5 +1,26 @@
 # Gymio hardware pinouts
 
+## ESP32-C3 Super Mini ST7796S hardware test
+
+This wiring is used only by the standalone `tft-hardware-test` environment.
+The generic 3.5-inch 320x480 board must have `IM0=1`, `IM1=1`, and `IM2=1` for
+4-wire SPI mode.
+
+| TFT pin | ESP32-C3 Super Mini | Purpose |
+| --- | --- | --- |
+| VCC | 5V/VBUS | Display module power; do not connect to 3.3V. |
+| GND | GND | Common ground. |
+| SCL | GPIO4 | SPI SCK. |
+| SDA | GPIO6 | SPI MOSI. |
+| CS | GPIO7 | Chip select. |
+| DC | GPIO3 | Data/command. |
+| RST | GPIO10 | Display reset. |
+| BL | Not connected | Initial test; depends on module backlight circuit. |
+| SDA-OF | Not connected | Not used. |
+
+GPIO logic remains 3.3V. MISO/readback and touch are disabled. GPIO2, GPIO8,
+and GPIO9 are not used by this test.
+
 ## ESP32-C3
 
 - Board target: ESP32-C3 DevKitM-1 compatible

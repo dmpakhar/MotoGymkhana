@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <WebServer.h>
+#include <WiFiUdp.h>
 
 #include "rider/RiderRegistry.h"
 #include "timer/SingleGateTimer.h"
@@ -56,6 +57,8 @@ private:
     int16_t pendingGateLimitMm_ = -1;
     bool sensorSetupActive_ = false;
     bool mdnsStarted_ = false;
+    WiFiUDP displayUdp_;
+    uint32_t lastDisplayBroadcastMs_ = 0;
 
     void handleRoot();
     void handleRiderRoot();
@@ -73,6 +76,7 @@ private:
     void handleSetGateLimit();
     void handleUseCurrentGateLimit();
     void handleSensorSetup();
+    void broadcastDisplayStatus();
     const Rider &riderForStatus() const;
     uint32_t bestForRider(uint32_t riderId) const;
     const char *timerStateText() const;

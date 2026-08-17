@@ -43,5 +43,9 @@ constexpr uint32_t kResultDisplayMs = 5000;
 // other people; WPA2 passwords must be at least eight characters.
 constexpr char kWifiAccessPointName[] = "Gymio";
 constexpr char kWifiAccessPointPassword[] = "gymio123";
+constexpr uint8_t kWifiAccessPointChannel = 1;
+constexpr uint8_t kWifiAccessPointMaxConnections = 4;
+constexpr uint16_t kDisplayStatusPort = 4210;
+constexpr uint16_t kDisplayBroadcastIntervalMs = 100;
 constexpr char kMdnsHostname[] = "gymio";
 } // namespace Config

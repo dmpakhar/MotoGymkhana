@@ -35,7 +35,12 @@ async function refresh(){try{const [s,h,r]=await Promise.all([api('/api/status')
 
 bool MotoWebServer::begin()
 {
-    if (!WiFi.softAP(Config::kWifiAccessPointName, Config::kWifiAccessPointPassword))
+    if (!WiFi.softAP(
+            Config::kWifiAccessPointName,
+            Config::kWifiAccessPointPassword,
+            Config::kWifiAccessPointChannel,
+            false,
+            Config::kWifiAccessPointMaxConnections))
     {
         return false;
     }
@@ -60,6 +65,10 @@ bool MotoWebServer::begin()
     server_.on("/api/sensor-setup", HTTP_POST, [this]() { handleSensorSetup(); });
     server_.onNotFound([this]() { server_.send(404, "text/plain", "Not found"); });
     server_.begin();
+    if (!displayUdp_.begin(Config::kDisplayStatusPort + 1))
+    {
+        Serial.println("Display UDP sender initialization failed.");
+    }
 
     mdnsStarted_ = MDNS.begin(Config::kMdnsHostname);
     if (mdnsStarted_)
@@ -146,6 +155,32 @@ void MotoWebServer::updateStatus(
     status_.timerState = timerState;
     status_.elapsedMs = elapsedMs;
     status_.resultMs = resultMs;
+    broadcastDisplayStatus();
+}
+
+void MotoWebServer::broadcastDisplayStatus()
+{
+    const uint32_t nowMs = millis();
+    if (nowMs - lastDisplayBroadcastMs_ < Config::kDisplayBroadcastIntervalMs)
+    {
+        return;
+    }
+    lastDisplayBroadcastMs_ = nowMs;
+
+    const uint32_t timeMs = status_.timerState == TimerState::Result ? status_.resultMs : status_.elapsedMs;
+    char payload[192];
+    snprintf(
+        payload,
+        sizeof(payload),
+        "{\"state\":\"%s\",\"timeMs\":%lu,\"riderName\":\"%s\",\"sessionBestMs\":%lu}",
+        timerStateText(),
+        static_cast<unsigned long>(timeMs),
+        riderForStatus().name,
+        static_cast<unsigned long>(bestForRider(riderForStatus().id)));
+
+    displayUdp_.beginPacket(IPAddress(192, 168, 4, 255), Config::kDisplayStatusPort);
+    displayUdp_.write(reinterpret_cast<const uint8_t *>(payload), strlen(payload));
+    displayUdp_.endPacket();
 }
 
 void MotoWebServer::handleRoot()
