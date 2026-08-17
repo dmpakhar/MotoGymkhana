@@ -67,6 +67,7 @@ private:
     void handleInvalidateAttempt();
     void handleRevalidateAttempt();
     void handleSetAttemptValidity(bool valid);
+    void handleAssignAttempt();
     void handleRiders();
     void handleAddRider();
     void handleSelectRider();
@@ -79,6 +80,8 @@ private:
     void broadcastDisplayStatus();
     const Rider &riderForStatus() const;
     uint32_t bestForRider(uint32_t riderId) const;
+    uint32_t absoluteBest() const;
+    const char *absoluteBestRiderName() const;
     const char *timerStateText() const;
 
     WebServer server_{80};

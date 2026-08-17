@@ -2,6 +2,7 @@
 
 #include <ESPmDNS.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
 
 #include "config/Config.h"
 #include "config/Version.h"
@@ -28,7 +29,10 @@ const f=v=>{const m=Math.floor(v/60000),s=Math.floor(v/1000)%60,ms=v%1000;return
 async function api(url,options){const r=await fetch(url,options);if(!r.ok)throw new Error((await r.json()).error||'Request failed');return r.json()}
 function renderRiders(data){$('selectedRider').textContent=data.riders.find(r=>r.id===data.selectedId).name;riderList.replaceChildren();data.riders.forEach(r=>{const option=document.createElement('div');option.className='rider-option';const b=document.createElement('button');b.className='rider'+(r.id===data.selectedId?' selected':'');b.textContent=r.name;b.onclick=async()=>{await api('/api/riders/select',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+r.id});refresh()};option.appendChild(b);if(r.id!==0){const remove=document.createElement('button');remove.className='rider-delete';remove.textContent='×';remove.setAttribute('aria-label','Remove '+r.name);remove.onclick=async()=>{if(confirm('Remove rider '+r.name+'?')){try{await api('/api/riders?id='+r.id,{method:'DELETE'});refresh()}catch(e){connection.textContent=e.message}}};option.appendChild(remove)}riderList.appendChild(option)})}
 async function setAttemptValidity(number,valid){const action=valid?'revalidate':'invalidate';if(!confirm((valid?'Revalidate':'Invalidate')+' attempt '+number+'?'+(valid?' It will be eligible for best times again.':' It will be excluded from best times.')))return;try{await api('/api/attempts/'+action,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'number='+number});refresh()}catch(err){connection.textContent=err.message}}
-async function refresh(){try{const [s,h,r]=await Promise.all([api('/api/status'),api('/api/history'),api('/api/riders')]);distance.textContent=s.distanceMm<0?'∞':s.distanceMm;distanceUnit.textContent=s.distanceMm<0?'':'mm';filtered.textContent=s.filteredDistanceMm<0?'—':s.filteredDistanceMm;trigger.textContent=s.triggerDistanceMm<0?'—':s.triggerDistanceMm;if(document.activeElement!==gateLimit)gateLimit.value=s.triggerDistanceMm>=0?s.triggerDistanceMm:'';gateLimit.disabled=!s.sensorSetupActive;$('gateLimitForm').querySelectorAll('button').forEach(b=>b.disabled=!s.sensorSetupActive);setupButton.textContent=s.sensorSetupActive?'Finish Sensor Setup':'Enable Sensor Setup';setupButton.classList.toggle('active',s.sensorSetupActive);setupButton.disabled=!s.calibrated&& !s.sensorSetupActive;state.textContent=s.sensorSetupActive?'SENSOR SETUP':s.state;time.textContent=f(s.timeMs);$('timerRider').textContent=s.riderName;$('best').textContent=s.sessionBestMs?f(s.sessionBestMs):'—';$('bestLabel').textContent=s.riderName+' · session best';connection.textContent=s.sensorSetupActive?'Sensor Setup: attempts blocked.':s.calibrated?'Live · v'+s.version:'Calibrating gate…';historyList.innerHTML=h.attempts.length?h.attempts.map(a=>'<li style="'+(a.valid?'':'opacity:.45;text-decoration:line-through')+'"><span>Attempt '+a.number+'<small>'+a.riderName+(a.valid?'':' · INVALID')+'</small></span><span><strong>'+f(a.durationMs)+'</strong>'+(a.valid?'<button style="margin-left:10px" onclick="setAttemptValidity('+a.number+',false)">Invalidate</button>':'<button style="margin-left:10px" onclick="setAttemptValidity('+a.number+',true)">Revalidate</button>')+'</span></li>').join(''):'<li class="empty">No completed attempts yet</li>';renderRiders(r)}catch(e){connection.textContent=e.message||'Connection lost'}}$('riderForm').onsubmit=async e=>{e.preventDefault();const input=$('riderName');try{await api('/api/riders',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'name='+encodeURIComponent(input.value)});input.value='';refresh()}catch(err){connection.textContent=err.message}};$('gateLimitForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/gate/limit',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'limit='+encodeURIComponent(gateLimit.value)});refresh()}catch(err){connection.textContent=err.message}};$('useCurrentLimit').onclick=async()=>{try{await api('/api/gate/limit/current',{method:'POST'});refresh()}catch(err){connection.textContent=err.message}};setupButton.onclick=async()=>{if(!setupButton.classList.contains('active')&&!confirm('Enter Sensor Setup? Attempts will be blocked until you finish setup.'))return;try{await api('/api/sensor-setup',{method:'POST'});refresh()}catch(err){connection.textContent=err.message}};refresh();setInterval(refresh,500);
+async function assignAttempt(number,riderId){try{await api('/api/attempts/assign',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'number='+number+'&riderId='+encodeURIComponent(riderId)});document.activeElement.blur();refresh()}catch(err){connection.textContent=err.message;refresh()}}
+function showReassign(number){const select=$('attempt-rider-'+number);select.style.display='inline-block';select.focus()}
+function renderHistory(data,riderData){if(document.activeElement&&document.activeElement.classList.contains('attempt-rider'))return;if(!data.attempts.length){historyList.innerHTML='<li class="empty">No completed attempts yet</li>';return}historyList.innerHTML=data.attempts.map(a=>{let riders=riderData.riders.slice();if(!riders.some(r=>r.id===a.riderId))riders.push({id:a.riderId,name:a.riderName+' (deleted)'});const options=riders.map(r=>'<option value="'+r.id+'" '+(r.id===a.riderId?'selected':'')+'>'+(r.id===0?'NONAME':r.name)+'</option>').join('');const validity=a.valid?'<button style="margin-left:8px" onclick="setAttemptValidity('+a.number+',false)">Invalidate</button>':'<button style="margin-left:8px" onclick="setAttemptValidity('+a.number+',true)">Revalidate</button>';const riderName=a.riderId===0?'NONAME':a.riderName;return '<li style="'+(a.valid?'':'opacity:.6')+'"><span>Attempt '+a.number+'<small><button style="padding:0;border:0;background:none;color:#9cb0bf;text-decoration:underline;font:inherit" onclick="showReassign('+a.number+')">'+riderName+'</button>'+(a.valid?'':' · INVALID')+'</small></span><span style="text-align:right"><strong>'+f(a.durationMs)+'</strong><br><button style="margin-top:6px" onclick="showReassign('+a.number+')">Reassign</button>'+validity+'<br><select id="attempt-rider-'+a.number+'" class="attempt-rider" style="display:none;margin-top:8px;max-width:190px;background:#10151b;color:#edf3f7;border:1px solid #3d5262;border-radius:8px;padding:7px" onchange="assignAttempt('+a.number+',this.value)">'+options+'</select></span></li>'}).join('')}
+async function refresh(){try{const [s,h,r]=await Promise.all([api('/api/status'),api('/api/history'),api('/api/riders')]);distance.textContent=s.distanceMm<0?'∞':s.distanceMm;distanceUnit.textContent=s.distanceMm<0?'':'mm';filtered.textContent=s.filteredDistanceMm<0?'—':s.filteredDistanceMm;trigger.textContent=s.triggerDistanceMm<0?'—':s.triggerDistanceMm;if(document.activeElement!==gateLimit)gateLimit.value=s.triggerDistanceMm>=0?s.triggerDistanceMm:'';gateLimit.disabled=!s.sensorSetupActive;$('gateLimitForm').querySelectorAll('button').forEach(b=>b.disabled=!s.sensorSetupActive);setupButton.textContent=s.sensorSetupActive?'Finish Sensor Setup':'Enable Sensor Setup';setupButton.classList.toggle('active',s.sensorSetupActive);setupButton.disabled=!s.calibrated&& !s.sensorSetupActive;state.textContent=s.sensorSetupActive?'SENSOR SETUP':s.state;time.textContent=f(s.timeMs);$('timerRider').textContent=s.riderName;$('best').textContent=s.absoluteBestMs?f(s.absoluteBestMs):'—';$('bestLabel').textContent='Absolute best · '+(s.absoluteBestMs?s.absoluteBestRider:'—');connection.textContent=s.sensorSetupActive?'Sensor Setup: attempts blocked.':s.calibrated?'Live · v'+s.version:'Calibrating gate…';renderHistory(h,r);renderRiders(r)}catch(e){connection.textContent=e.message||'Connection lost'}}$('riderForm').onsubmit=async e=>{e.preventDefault();const input=$('riderName');try{await api('/api/riders',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'name='+encodeURIComponent(input.value)});input.value='';refresh()}catch(err){connection.textContent=err.message}};$('gateLimitForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/gate/limit',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'limit='+encodeURIComponent(gateLimit.value)});refresh()}catch(err){connection.textContent=err.message}};$('useCurrentLimit').onclick=async()=>{try{await api('/api/gate/limit/current',{method:'POST'});refresh()}catch(err){connection.textContent=err.message}};setupButton.onclick=async()=>{if(!setupButton.classList.contains('active')&&!confirm('Enter Sensor Setup? Attempts will be blocked until you finish setup.'))return;try{await api('/api/sensor-setup',{method:'POST'});refresh()}catch(err){connection.textContent=err.message}};refresh();setInterval(refresh,500);
 </script></body></html>
 )HTML";
 } // namespace
@@ -45,6 +49,19 @@ bool MotoWebServer::begin()
         return false;
     }
 
+    // Keep the SoftAP security mode deterministic for embedded clients.
+    wifi_config_t accessPointConfig{};
+    if (esp_wifi_get_config(WIFI_IF_AP, &accessPointConfig) != ESP_OK)
+    {
+        return false;
+    }
+    accessPointConfig.ap.authmode = WIFI_AUTH_WPA2_PSK;
+    accessPointConfig.ap.pairwise_cipher = WIFI_CIPHER_TYPE_CCMP;
+    if (esp_wifi_set_config(WIFI_IF_AP, &accessPointConfig) != ESP_OK)
+    {
+        return false;
+    }
+
     server_.on("/", HTTP_GET, [this]() { handleRoot(); });
     server_.on("/main", HTTP_GET, [this]() { handleRoot(); });
     server_.on("/main/", HTTP_GET, [this]() { handleRoot(); });
@@ -54,6 +71,7 @@ bool MotoWebServer::begin()
     server_.on("/api/history", HTTP_GET, [this]() { handleHistory(); });
     server_.on("/api/attempts/invalidate", HTTP_POST, [this]() { handleInvalidateAttempt(); });
     server_.on("/api/attempts/revalidate", HTTP_POST, [this]() { handleRevalidateAttempt(); });
+    server_.on("/api/attempts/assign", HTTP_POST, [this]() { handleAssignAttempt(); });
     server_.on("/api/riders", HTTP_GET, [this]() { handleRiders(); });
     server_.on("/api/riders", HTTP_POST, [this]() { handleAddRider(); });
     server_.on("/api/riders", HTTP_DELETE, [this]() { handleRemoveRider(); });
@@ -172,11 +190,12 @@ void MotoWebServer::broadcastDisplayStatus()
     snprintf(
         payload,
         sizeof(payload),
-        "{\"state\":\"%s\",\"timeMs\":%lu,\"riderName\":\"%s\",\"sessionBestMs\":%lu}",
+        "{\"state\":\"%s\",\"timeMs\":%lu,\"riderName\":\"%s\",\"absoluteBestMs\":%lu,\"absoluteBestRider\":\"%s\"}",
         timerStateText(),
         static_cast<unsigned long>(timeMs),
         riderForStatus().name,
-        static_cast<unsigned long>(bestForRider(riderForStatus().id)));
+        static_cast<unsigned long>(absoluteBest()),
+        absoluteBestRiderName());
 
     displayUdp_.beginPacket(IPAddress(192, 168, 4, 255), Config::kDisplayStatusPort);
     displayUdp_.write(reinterpret_cast<const uint8_t *>(payload), strlen(payload));
@@ -200,11 +219,11 @@ void MotoWebServer::handleRiderRoot()
 void MotoWebServer::handleStatus()
 {
     const uint32_t timeMs = status_.timerState == TimerState::Result ? status_.resultMs : status_.elapsedMs;
-    char response[256];
+    char response[384];
     snprintf(
         response,
         sizeof(response),
-        "{\"version\":\"%s\",\"distanceMm\":%d,\"filteredDistanceMm\":%d,\"triggerDistanceMm\":%d,\"calibrated\":%s,\"sensorSetupActive\":%s,\"state\":\"%s\",\"timeMs\":%lu,\"riderName\":\"%s\",\"sessionBestMs\":%lu}",
+        "{\"version\":\"%s\",\"distanceMm\":%d,\"filteredDistanceMm\":%d,\"triggerDistanceMm\":%d,\"calibrated\":%s,\"sensorSetupActive\":%s,\"state\":\"%s\",\"timeMs\":%lu,\"riderName\":\"%s\",\"sessionBestMs\":%lu,\"absoluteBestMs\":%lu,\"absoluteBestRider\":\"%s\"}",
         Version::kString,
         status_.distanceMm,
         status_.filteredDistanceMm,
@@ -214,7 +233,9 @@ void MotoWebServer::handleStatus()
         timerStateText(),
         static_cast<unsigned long>(timeMs),
         riderForStatus().name,
-        static_cast<unsigned long>(bestForRider(riderForStatus().id)));
+        static_cast<unsigned long>(bestForRider(riderForStatus().id)),
+        static_cast<unsigned long>(absoluteBest()),
+        absoluteBestRiderName());
     server_.send(200, "application/json", response);
 }
 
@@ -231,10 +252,11 @@ void MotoWebServer::handleHistory()
         used += snprintf(
             response + used,
             sizeof(response) - used,
-            "%s{\"number\":%lu,\"durationMs\":%lu,\"riderName\":\"%s\",\"valid\":%s}",
+            "%s{\"number\":%lu,\"durationMs\":%lu,\"riderId\":%lu,\"riderName\":\"%s\",\"valid\":%s}",
             i == 0 ? "" : ",",
             static_cast<unsigned long>(attempt.number),
             static_cast<unsigned long>(attempt.durationMs),
+            static_cast<unsigned long>(attempt.rider.id),
             attempt.rider.name,
             attempt.valid ? "true" : "false");
     }
@@ -278,6 +300,37 @@ void MotoWebServer::handleSetAttemptValidity(bool valid)
             }
 
             attempt.valid = valid;
+            server_.send(200, "application/json", "{\"ok\":true}");
+            return;
+        }
+    }
+
+    server_.send(404, "application/json", "{\"error\":\"Attempt not found.\"}");
+}
+
+void MotoWebServer::handleAssignAttempt()
+{
+    if (!server_.hasArg("number") || !server_.hasArg("riderId"))
+    {
+        server_.send(400, "application/json", "{\"error\":\"Missing attempt number or rider.\"}");
+        return;
+    }
+
+    const uint32_t number = strtoul(server_.arg("number").c_str(), nullptr, 10);
+    const uint32_t riderId = strtoul(server_.arg("riderId").c_str(), nullptr, 10);
+    const Rider &rider = riders_.find(riderId);
+    if (riderId != 0 && rider.id != riderId)
+    {
+        server_.send(404, "application/json", "{\"error\":\"Registered rider not found.\"}");
+        return;
+    }
+
+    for (uint8_t i = 0; i < historyCount_; ++i)
+    {
+        Attempt &attempt = history_[i];
+        if (attempt.number == number)
+        {
+            attempt.rider = rider;
             server_.send(200, "application/json", "{\"ok\":true}");
             return;
         }
@@ -513,6 +566,36 @@ uint32_t MotoWebServer::bestForRider(uint32_t riderId) const
         }
     }
     return bestMs;
+}
+
+uint32_t MotoWebServer::absoluteBest() const
+{
+    uint32_t bestMs = 0;
+    for (uint8_t i = 0; i < historyCount_; ++i)
+    {
+        const Attempt &attempt = history_[i];
+        if (!attempt.valid || (bestMs != 0 && attempt.durationMs >= bestMs))
+        {
+            continue;
+        }
+        bestMs = attempt.durationMs;
+    }
+    return bestMs;
+}
+
+const char *MotoWebServer::absoluteBestRiderName() const
+{
+    const Attempt *bestAttempt = nullptr;
+    for (uint8_t i = 0; i < historyCount_; ++i)
+    {
+        const Attempt &attempt = history_[i];
+        if (!attempt.valid || (bestAttempt != nullptr && attempt.durationMs >= bestAttempt->durationMs))
+        {
+            continue;
+        }
+        bestAttempt = &attempt;
+    }
+    return bestAttempt == nullptr || bestAttempt->rider.id == 0 ? "NONAME" : bestAttempt->rider.name;
 }
 
 const char *MotoWebServer::timerStateText() const

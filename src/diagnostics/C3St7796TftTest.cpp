@@ -1,5 +1,9 @@
 #include <Arduino.h>
 #include <LovyanGFX.hpp>
+#include <WiFi.h>
+#include <WiFiUdp.h>
+
+#include "config/Config.h"
 
 namespace
 {
@@ -62,8 +66,28 @@ private:
 
 St7796Display display;
 lgfx::LGFX_Sprite digitSprite(&display);
+WiFiUDP statusUdp;
 uint32_t lastTimerUpdateMs = 0;
+uint32_t lastWifiReconnectMs = 0;
+uint32_t lastStatusPacketMs = 0;
 char previousTimerText[10] = "         ";
+char displayedRider[25] = "NONAME";
+char displayedBestRider[25] = "";
+char displayedState[16] = "";
+uint32_t displayedBestMs = UINT32_MAX;
+wl_status_t displayedWifiStatus = WL_NO_SHIELD;
+bool wifiHasConnected = false;
+bool udpStarted = false;
+
+void handleWifiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
+{
+    if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED)
+    {
+        Serial.printf("[%lu ms] WiFi disconnected, reason=%u\n",
+                      static_cast<unsigned long>(millis()),
+                      static_cast<unsigned>(info.wifi_sta_disconnected.reason));
+    }
+}
 
 void drawCentered(const char *text, int32_t y, const lgfx::IFont *font)
 {
@@ -132,6 +156,199 @@ void updateTimer(uint32_t elapsedMs)
         previousTimerText[i] = text[i];
     }
 }
+
+void formatTime(uint32_t timeMs, char *output, size_t outputSize)
+{
+    snprintf(output, outputSize, "%02lu:%02lu.%03lu",
+             static_cast<unsigned long>(timeMs / 60000U),
+             static_cast<unsigned long>((timeMs / 1000U) % 60U),
+             static_cast<unsigned long>(timeMs % 1000U));
+}
+
+bool readJsonString(const char *json, const char *key, char *output, size_t outputSize)
+{
+    char marker[40];
+    snprintf(marker, sizeof(marker), "\"%s\":\"", key);
+    const char *start = strstr(json, marker);
+    if (start == nullptr)
+    {
+        return false;
+    }
+    start += strlen(marker);
+    const char *end = strchr(start, '"');
+    if (end == nullptr)
+    {
+        return false;
+    }
+    const size_t length = min(static_cast<size_t>(end - start), outputSize - 1U);
+    memcpy(output, start, length);
+    output[length] = '\0';
+    return true;
+}
+
+bool readJsonUint(const char *json, const char *key, uint32_t &value)
+{
+    char marker[40];
+    snprintf(marker, sizeof(marker), "\"%s\":", key);
+    const char *start = strstr(json, marker);
+    if (start == nullptr)
+    {
+        return false;
+    }
+    value = strtoul(start + strlen(marker), nullptr, 10);
+    return true;
+}
+
+void updateHeaderState(const char *state)
+{
+    if (strcmp(state, displayedState) == 0)
+    {
+        return;
+    }
+    strncpy(displayedState, state, sizeof(displayedState) - 1U);
+    displayedState[sizeof(displayedState) - 1U] = '\0';
+    display.fillRect(340, 5, 135, 48, kBackgroundColor);
+    drawCenteredAt(displayedState, 408, 30, &fonts::Font2, kAccentColor);
+}
+
+void updateRider(const char *rider)
+{
+    const char *name = strcmp(rider, "ANON") == 0 ? "NONAME" : rider;
+    if (strcmp(name, displayedRider) == 0)
+    {
+        return;
+    }
+    strncpy(displayedRider, name, sizeof(displayedRider) - 1U);
+    displayedRider[sizeof(displayedRider) - 1U] = '\0';
+    display.fillRect(24, 258, 200, 43, kCardColor);
+    drawCenteredAt(displayedRider, 124, 279, &fonts::Font4, TFT_WHITE);
+}
+
+void updateBest(uint32_t bestMs, const char *bestRider)
+{
+    const char *name = strcmp(bestRider, "ANON") == 0 ? "NONAME" : bestRider;
+    if (bestMs == displayedBestMs && strcmp(name, displayedBestRider) == 0)
+    {
+        return;
+    }
+    displayedBestMs = bestMs;
+    strncpy(displayedBestRider, name, sizeof(displayedBestRider) - 1U);
+    displayedBestRider[sizeof(displayedBestRider) - 1U] = '\0';
+    char text[16] = "--:--.---";
+    if (bestMs != 0U)
+    {
+        formatTime(bestMs, text, sizeof(text));
+    }
+    display.fillRect(256, 253, 200, 49, kCardColor);
+    drawCenteredAt(text, 356, 269, &fonts::Font4, TFT_WHITE);
+    drawCenteredAt(bestMs == 0U ? "" : displayedBestRider,
+                   356, 295, &fonts::Font0, kMutedColor);
+}
+
+void receiveStatus(uint32_t nowMs)
+{
+    int packetSize = statusUdp.parsePacket();
+    while (packetSize > 0)
+    {
+        char payload[256];
+        const int length = statusUdp.read(payload, sizeof(payload) - 1U);
+        if (length > 0)
+        {
+            payload[length] = '\0';
+            char state[16];
+            char rider[25];
+            char bestRider[25];
+            uint32_t timeMs = 0;
+            uint32_t bestMs = 0;
+            if (readJsonString(payload, "state", state, sizeof(state)) &&
+                readJsonString(payload, "riderName", rider, sizeof(rider)) &&
+                readJsonString(payload, "absoluteBestRider", bestRider, sizeof(bestRider)) &&
+                readJsonUint(payload, "timeMs", timeMs) &&
+                readJsonUint(payload, "absoluteBestMs", bestMs))
+            {
+                lastStatusPacketMs = nowMs;
+                updateHeaderState(state);
+                updateTimer(timeMs);
+                updateRider(rider);
+                updateBest(bestMs, bestRider);
+            }
+        }
+        packetSize = statusUdp.parsePacket();
+    }
+}
+
+void drawWifiStatus(wl_status_t status)
+{
+    if (status == displayedWifiStatus)
+    {
+        return;
+    }
+    displayedWifiStatus = status;
+    displayedState[0] = '\0';
+    Serial.printf("WiFi status: %d\n", static_cast<int>(status));
+    if (status == WL_CONNECTED)
+    {
+        wifiHasConnected = true;
+        WiFi.setSleep(true);
+        Serial.printf("[%lu ms] WiFi connected, RSSI %ld dBm, IP: ",
+                      static_cast<unsigned long>(millis()),
+                      static_cast<long>(WiFi.RSSI()));
+        Serial.println(WiFi.localIP());
+    }
+    const char *label = "OFFLINE";
+    uint16_t color = kMutedColor;
+    switch (status)
+    {
+    case WL_IDLE_STATUS:
+        label = "CONNECTING";
+        break;
+    case WL_NO_SSID_AVAIL:
+        label = "NO AP";
+        break;
+    case WL_CONNECTED:
+        label = "ONLINE";
+        color = kAccentColor;
+        break;
+    case WL_CONNECT_FAILED:
+        // A C3 may briefly report this while the AP handshake is still being
+        // retried. The credentials are known-good once this unit has connected.
+        label = "CONNECTING";
+        break;
+    case WL_CONNECTION_LOST:
+        label = "LOST";
+        break;
+    case WL_DISCONNECTED:
+        label = wifiHasConnected ? "OFFLINE" : "CONNECTING";
+        break;
+    default:
+        label = "WAITING";
+        break;
+    }
+    display.fillRect(340, 5, 135, 48, kBackgroundColor);
+    drawCenteredAt(label, 408, 30, &fonts::Font2, color);
+}
+
+void updateWifi(uint32_t nowMs)
+{
+    const wl_status_t status = WiFi.status();
+    drawWifiStatus(status);
+    if (status == WL_CONNECTED && !udpStarted)
+    {
+        udpStarted = statusUdp.begin(Config::kDisplayStatusPort);
+        Serial.println(udpStarted ? "Display UDP receiver ready." : "Display UDP receiver failed.");
+    }
+    if (status != WL_CONNECTED && udpStarted)
+    {
+        statusUdp.stop();
+        udpStarted = false;
+    }
+    if (status != WL_CONNECTED && nowMs - lastWifiReconnectMs >= 30000U)
+    {
+        Serial.println("WiFi recovery reconnect requested.");
+        WiFi.reconnect();
+        lastWifiReconnectMs = nowMs;
+    }
+}
 } // namespace
 
 void setup()
@@ -157,30 +374,47 @@ void setup()
     }
     display.fillScreen(kBackgroundColor);
     drawCenteredAt("GYMIO", 70, 30, &fonts::Font4, TFT_WHITE);
-    drawCenteredAt("READY", 414, 30, &fonts::Font2, kAccentColor);
+    drawCenteredAt("WAITING", 408, 30, &fonts::Font2, kMutedColor);
 
     display.fillRoundRect(16, 58, 448, 158, 18, kCardColor);
     drawCenteredAt("CURRENT TIME", 240, 82, &fonts::Font2, kMutedColor);
     updateTimer(0);
 
-    display.fillRoundRect(16, 228, 216, 76, 18, kCardColor);
-    drawCenteredAt("RIDER", 124, 249, &fonts::Font2, kMutedColor);
-    drawCenteredAt("NONAME", 124, 282, &fonts::Font4, TFT_WHITE);
+    display.fillRoundRect(16, 224, 216, 80, 18, kCardColor);
+    drawCenteredAt("RIDER", 124, 243, &fonts::Font2, kMutedColor);
+    drawCenteredAt("NONAME", 124, 279, &fonts::Font4, TFT_WHITE);
 
-    display.fillRoundRect(248, 228, 216, 76, 18, kCardColor);
-    drawCenteredAt("BEST", 356, 249, &fonts::Font2, kMutedColor);
-    drawCenteredAt("--:--.---", 356, 282, &fonts::Font4, TFT_WHITE);
+    display.fillRoundRect(248, 224, 216, 80, 18, kCardColor);
+    drawCenteredAt("BEST", 356, 243, &fonts::Font2, kMutedColor);
+    drawCenteredAt("--:--.---", 356, 269, &fonts::Font4, TFT_WHITE);
+    displayedBestMs = 0;
     lastTimerUpdateMs = millis();
-    Serial.println("Large-timer Gymio layout rendered.");
+    Serial.println("Large-timer Gymio layout rendered. Starting WiFi...");
+
+    WiFi.persistent(false);
+    WiFi.mode(WIFI_STA);
+    WiFi.onEvent(handleWifiEvent, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+    WiFi.setTxPower(WIFI_POWER_8_5dBm);
+    WiFi.setSleep(false);
+    WiFi.setAutoReconnect(true);
+    WiFi.config(IPAddress(192, 168, 4, 250),
+                IPAddress(192, 168, 4, 1),
+                IPAddress(255, 255, 255, 0));
+    WiFi.begin(Config::kWifiAccessPointName, Config::kWifiAccessPointPassword);
+    lastWifiReconnectMs = millis();
 }
 
 void loop()
 {
     const uint32_t now = millis();
-    if (now - lastTimerUpdateMs >= 1000U)
+    updateWifi(now);
+    if (udpStarted)
     {
-        lastTimerUpdateMs = now;
-        updateTimer((now / 1000U) * 1000U);
+        receiveStatus(now);
+        if (lastStatusPacketMs != 0U && now - lastStatusPacketMs > 1500U)
+        {
+            updateHeaderState("NO DATA");
+        }
     }
     delay(10);
 }
