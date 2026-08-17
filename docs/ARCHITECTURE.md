@@ -12,7 +12,9 @@ created; the web server and sensor are serviced on every pass through `loop()`.
 | `SingleGateTimer` | Implements the ready, clear-gate, armed, and result state machine. |
 | `Display` | Renders startup, calibration, distance, active timer, result, and errors. |
 | `RiderRegistry` | Stores up to 20 active riders and browser UUID associations. |
-| `MotoWebServer` | Runs the AP-facing HTTP UI, APIs, attempt ring buffer, and sensor setup controls. |
+| `MotoWebServer` | Runs the AP-facing HTTP UI/APIs, attempt ring buffer, sensor setup, and ESP-NOW display broadcast. |
+| `GymioTftDisplay` | Receives ESP-NOW status and renders the large ST7796S UI on an ESP32-C3. |
+| `DisplayStatusProtocol` | Defines the versioned binary frame shared by the gate and TFT. |
 
 ## Measurement and timer flow
 
@@ -30,7 +32,12 @@ GateDetector -- filtered distance --> OLED / web status
               Started / Finished / Reset
                          |
                          v
-             rider history and displays
+             rider history, OLED, web UI
+                         |
+                    ESP-NOW broadcast
+                         |
+                         v
+                  ESP32-C3 TFT display
 ```
 
 The gate detector normalizes a no-target reading to 4000 mm. It calibrates from
@@ -50,6 +57,24 @@ The firmware stores 20 attempts in a ring buffer. Each attempt contains a rider
 snapshot, duration, sequence number, and validity flag. This preserves historical
 names and times after an active rider registration is deleted.
 
+Only valid attempts participate in personal or absolute best calculations.
+Reassigning an attempt changes its rider snapshot; if that attempt is the best,
+the displayed best rider changes as well. Invalidation excludes an attempt from
+best calculations without deleting it.
+
+## Radio architecture
+
+The ESP32-S3 runs a WPA2 SoftAP named `Gymio` on the fixed channel in
+`Config::kWifiAccessPointChannel` (currently channel 1). Phones join this AP for
+HTTP access. The gate also broadcasts a compact status frame every 100 ms using
+ESP-NOW on the AP interface.
+
+The TFT enables station mode only to use the radio, fixes its channel to the
+same configured value, and does not associate with the AP or obtain an IP
+address. Frames use the broadcast MAC address, so the gate does not need the
+TFT's MAC and multiple displays can listen. The link is one-way and
+unencrypted. See [TFT display and ESP-NOW](TFT_DISPLAY.md).
+
 ## HTTP surface
 
 | Method | Path | Purpose |
@@ -64,8 +89,10 @@ names and times after an active rider registration is deleted.
 | POST | `/api/riders/logout` | Delete the phone-associated rider registration. |
 | POST | `/api/attempts/invalidate` | Exclude an attempt from valid results. |
 | POST | `/api/attempts/revalidate` | Restore an attempt to valid results. |
+| POST | `/api/attempts/assign` | Reassign a completed attempt to a rider. |
 | POST | `/api/sensor-setup` | Toggle sensor setup mode. |
 | POST | `/api/gate/limit` | Set an explicit threshold. |
 | POST | `/api/gate/limit/current` | Use the current raw reading as threshold. |
 
 The HTTP server is intentionally local and unauthenticated in version 0.1.0.
+Request fields and response shapes are documented in [HTTP API](API.md).

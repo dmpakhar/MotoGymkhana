@@ -17,13 +17,16 @@ The main dashboard provides:
 
 - current timer state, time, and assigned rider;
 - rider creation, selection, and deletion;
-- session best for the selected or active rider;
-- the latest 20 attempts, including invalidate and revalidate controls;
+- absolute best time and its rider;
+- the latest 20 attempts, including reassignment, invalidate, and revalidate controls;
 - sensor distance, filtered distance, and gate threshold;
 - Sensor Setup mode for safely changing the threshold while attempts are blocked.
 
-Deleting a rider removes the registration but does not remove completed entries
-from attempt history. `ANON` is the operator-side fallback when nobody is assigned.
+Click an attempt's rider name or **Reassign** to assign that completed time to a
+different registered rider. The absolute best rider is recalculated
+automatically. Deleting a rider removes the registration but does not remove
+completed entries from attempt history. `ANON` is the internal/operator fallback;
+the rider-facing UI and TFT show `NONAME` when nobody is assigned.
 
 ## Personal rider page
 
@@ -44,6 +47,10 @@ blocked during that rider's active attempt.
 Use the same browser for repeat visits. Incognito mode, a different browser, or
 cleared site data produces a different phone UUID.
 
+Gymio can store 20 named riders. This is separate from the gate's limit of 15
+simultaneously connected Wi-Fi clients. The TFT does not join the Wi-Fi network
+and therefore does not consume a client slot.
+
 ## Timer sequence
 
 1. **READY** — waiting for the prepared rider to cross the gate.
@@ -57,3 +64,11 @@ cleared site data produces a different phone UUID.
 Sensor Setup is available from the main dashboard only when the timer is
 calibrated and ready. While active, attempts are blocked. Set a threshold in
 millimetres or use the current raw distance, then finish Sensor Setup before use.
+
+## Large TFT display
+
+The optional TFT shows the timer state, current time, active rider, absolute
+best time, and best rider. It starts in `WAITING`, changes to live timer state
+after receiving ESP-NOW data, and shows `NO DATA` if updates stop for more than
+1.5 seconds. It does not provide controls; rider and attempt management remains
+on the web pages.

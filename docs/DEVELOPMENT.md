@@ -6,15 +6,14 @@
 | --- | --- |
 | `esp32-s3` | ESP32-S3 DevKitC-1 N16R8, 16 MB flash / 8 MB octal PSRAM. |
 | `esp32-s3-n8r8` | ESP32-S3 DevKitC-1 N8R8, 8 MB flash / 8 MB octal PSRAM. |
-| `esp32-c3` | ESP32-C3 DevKitM-1 compatible board. |
-| `tft-hardware-test` | Standalone ESP32-C3 Super Mini + ST7796S SPI display test. |
+| `tft-hardware-test` | ESP32-C3 Super Mini + ST7796S live display application (legacy environment name). |
 
 Build all targets individually:
 
 ```sh
 pio run -e esp32-s3
 pio run -e esp32-s3-n8r8
-pio run -e esp32-c3
+pio run -e tft-hardware-test
 ```
 
 Upload a selected target:
@@ -46,13 +45,31 @@ pio run -e tft-hardware-test -t upload
 pio device monitor -b 115200
 ```
 
-The application uses LovyanGFX, write-only SPI at 20 MHz, and a 480x320
+The application uses LovyanGFX, write-only SPI at 40 MHz, and a 480x320
 landscape view. It receives live timer status from the start gate over
 broadcast ESP-NOW on the configured access-point channel; it does not join the
 phone Wi-Fi network. It shows the active rider, current/result time, absolute
 best time and best rider, or a waiting screen while the start gate is
 unavailable. No sensor, local timer, distance, touch, or gate application code
 is included.
+
+The TFT uses GPIO5 LEDC PWM at 20 kHz/8-bit resolution for its active-high
+backlight input. The default is 100%; change `kDefaultBacklightPercent` for a
+different fixed startup brightness.
+
+## Source layout
+
+| Path | Contents |
+| --- | --- |
+| `src/main.cpp` | Gate application entry point. |
+| `src/config` | Shared pins, timing, radio settings, and firmware version. |
+| `src/tof`, `src/gate`, `src/timer` | Measurement and timer logic. |
+| `src/display` | Gate OLED rendering. |
+| `src/rider` | Rider registry and browser identity associations. |
+| `src/web` | SoftAP, web pages, API, history, and ESP-NOW sender. |
+| `src/protocol` | Shared gate-to-TFT frame definition. |
+| `src/tft` | Isolated ESP32-C3 large-display application. |
+| `src/diagnostics` | Optional hardware diagnostics. |
 
 | Macro | Diagnostic |
 | --- | --- |

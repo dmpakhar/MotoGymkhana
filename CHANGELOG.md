@@ -4,6 +4,19 @@ All notable changes are documented here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+### Added
+
+- ESP32-C3 ST7796S large-display application with high-contrast landscape UI.
+- Broadcast ESP-NOW status protocol between the gate and one or more TFT displays.
+- Active-high GPIO5 backlight control using 20 kHz, 8-bit LEDC PWM.
+- Absolute best time/rider display and completed-attempt reassignment.
+
+### Changed
+
+- TFT rendering uses 40 MHz SPI and redraws only changed timer glyphs.
+- TFT no longer joins the phone Wi-Fi network or consumes a SoftAP client slot.
+- SoftAP capacity is configured for 15 simultaneous clients; rider storage remains 20.
+
 ## 0.1.0 - 2026-08-14
 
 Initial prerelease.

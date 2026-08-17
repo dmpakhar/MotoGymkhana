@@ -44,8 +44,8 @@ constexpr uint32_t kResultDisplayMs = 5000;
 constexpr char kWifiAccessPointName[] = "Gymio";
 constexpr char kWifiAccessPointPassword[] = "gymio123";
 constexpr uint8_t kWifiAccessPointChannel = 1;
-// ESP32-S3 SoftAP SDK maximum. Infrastructure modules use static IPs so they
-// do not consume the smaller dynamic DHCP lease pool.
+// ESP32-S3 SoftAP SDK maximum. The TFT uses ESP-NOW without associating, so it
+// does not consume a SoftAP client slot or DHCP lease.
 constexpr uint8_t kWifiAccessPointMaxConnections = 15;
 constexpr uint16_t kDisplayBroadcastIntervalMs = 100;
 constexpr char kMdnsHostname[] = "gymio";
