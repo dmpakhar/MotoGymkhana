@@ -4,6 +4,8 @@ All notable changes are documented here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+## 0.2.0 - 2026-08-17
+
 ### Added
 
 - ESP32-C3 ST7796S large-display application with high-contrast landscape UI.

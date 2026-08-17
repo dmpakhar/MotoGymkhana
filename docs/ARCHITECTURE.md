@@ -94,5 +94,5 @@ unencrypted. See [TFT display and ESP-NOW](TFT_DISPLAY.md).
 | POST | `/api/gate/limit` | Set an explicit threshold. |
 | POST | `/api/gate/limit/current` | Use the current raw reading as threshold. |
 
-The HTTP server is intentionally local and unauthenticated in version 0.1.0.
+The HTTP server is intentionally local and unauthenticated in version 0.2.0.
 Request fields and response shapes are documented in [HTTP API](API.md).

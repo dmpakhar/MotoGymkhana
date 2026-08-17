@@ -5,7 +5,7 @@ ESP32-S3 gate controller measures crossings with a VL53L1X sensor, drives a
 local OLED, and hosts operator and rider pages over its own Wi-Fi network. An
 optional ESP32-C3/ST7796S large display receives live results over ESP-NOW.
 
-Current prerelease: **0.1.0**
+Current prerelease: **0.2.0**
 
 ## Features
 
