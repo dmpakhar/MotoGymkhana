@@ -39,15 +39,16 @@ changed. Restarting only the TFT does not require restarting the gate.
 - TFT `VCC` must be on stable USB 5V/VBUS, not the ESP32 3.3 V regulator.
 - TFT and ESP32-C3 grounds must be common.
 - Confirm `IM0=1`, `IM1=1`, and `IM2=1` for 4-wire SPI.
-- Verify SCL/GPIO4, SDA/GPIO6, CS/GPIO7, DC/GPIO3, and RST/GPIO10.
-- Confirm `BL` is connected to GPIO5 on the tested module.
+- Verify every signal against the selected profile in [Hardware](HARDWARE.md);
+  the Super Mini and C3-MINI-1 profiles use different SCK/CS/DC/RST/BL pins.
 - Run the serial monitor at 115200 and check for TFT or sprite initialization errors.
 
 ## Backlight does not respond
 
-The GPIO5 direct-control result is specific to the tested TFT PCB. Its `BL` pin
-was confirmed active-high: 0% is off/dim and 100% is maximum. Do not assume a
-different panel's BL pin is logic-level; verify its schematic or test safely.
+The direct-control result is specific to the tested TFT PCB. Its `BL` pin was
+confirmed active-high: 0% is off/dim and 100% is maximum. The Super Mini uses
+GPIO5 and C3-MINI-1 uses GPIO0. Do not assume a different panel's BL pin is
+logic-level; verify its schematic or test safely.
 Never attempt to power a raw backlight from an ESP32 GPIO.
 
 ## Timer digits flicker

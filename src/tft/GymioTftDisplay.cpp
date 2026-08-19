@@ -6,20 +6,10 @@
 
 #include "config/Config.h"
 #include "protocol/DisplayStatusProtocol.h"
+#include "tft/TftHardwareConfig.h"
 
 namespace
 {
-constexpr int8_t kTftSckPin = 4;
-constexpr int8_t kTftMosiPin = 6;
-constexpr int8_t kTftCsPin = 7;
-constexpr int8_t kTftDcPin = 3;
-constexpr int8_t kTftResetPin = 10;
-constexpr int8_t kTftBacklightPin = 5;
-constexpr uint32_t kSpiWriteFrequencyHz = 40000000;
-constexpr uint8_t kBacklightPwmChannel = 0;
-constexpr uint32_t kBacklightPwmFrequencyHz = 20000;
-constexpr uint8_t kBacklightPwmResolutionBits = 8;
-constexpr uint8_t kDefaultBacklightPercent = 100;
 // Sunlight-oriented palette: maximize luminance separation on the TFT.
 constexpr uint16_t kBackgroundColor = TFT_BLACK;
 constexpr uint16_t kCardColor = 0x1082;
@@ -34,26 +24,26 @@ public:
         auto busConfig = bus_.config();
         busConfig.spi_host = SPI2_HOST;
         busConfig.spi_mode = 0;
-        busConfig.freq_write = kSpiWriteFrequencyHz;
+        busConfig.freq_write = TftHardwareConfig::kSpiWriteFrequencyHz;
         busConfig.freq_read = 10000000;
         busConfig.spi_3wire = false;
         busConfig.use_lock = true;
         busConfig.dma_channel = SPI_DMA_CH_AUTO;
-        busConfig.pin_sclk = kTftSckPin;
-        busConfig.pin_mosi = kTftMosiPin;
-        busConfig.pin_miso = -1;
-        busConfig.pin_dc = kTftDcPin;
+        busConfig.pin_sclk = TftHardwareConfig::kSclkPin;
+        busConfig.pin_mosi = TftHardwareConfig::kMosiPin;
+        busConfig.pin_miso = TftHardwareConfig::kMisoPin;
+        busConfig.pin_dc = TftHardwareConfig::kDcPin;
         bus_.config(busConfig);
         panel_.setBus(&bus_);
 
         auto panelConfig = panel_.config();
-        panelConfig.pin_cs = kTftCsPin;
-        panelConfig.pin_rst = kTftResetPin;
+        panelConfig.pin_cs = TftHardwareConfig::kCsPin;
+        panelConfig.pin_rst = TftHardwareConfig::kResetPin;
         panelConfig.pin_busy = -1;
-        panelConfig.panel_width = 320;
-        panelConfig.panel_height = 480;
-        panelConfig.memory_width = 320;
-        panelConfig.memory_height = 480;
+        panelConfig.panel_width = TftHardwareConfig::kPanelWidth;
+        panelConfig.panel_height = TftHardwareConfig::kPanelHeight;
+        panelConfig.memory_width = TftHardwareConfig::kPanelWidth;
+        panelConfig.memory_height = TftHardwareConfig::kPanelHeight;
         panelConfig.offset_x = 0;
         panelConfig.offset_y = 0;
         panelConfig.offset_rotation = 0;
@@ -88,9 +78,15 @@ bool espNowReady = false;
 void setBacklightBrightness(uint8_t percent)
 {
     percent = min(percent, static_cast<uint8_t>(100));
-    constexpr uint16_t kMaximumDuty = (1U << kBacklightPwmResolutionBits) - 1U;
+    constexpr uint16_t kMaximumDuty =
+        (1U << TftHardwareConfig::kBacklightPwmResolutionBits) - 1U;
     const uint32_t duty = (static_cast<uint32_t>(percent) * kMaximumDuty + 50U) / 100U;
-    ledcWrite(kBacklightPwmChannel, duty);
+    ledcWrite(TftHardwareConfig::kBacklightPwmChannel, duty);
+}
+
+void setBacklightEnabled(bool enabled)
+{
+    setBacklightBrightness(enabled ? TftHardwareConfig::kDefaultBacklightPercent : 0U);
 }
 
 void receiveEspNow(const uint8_t *, const uint8_t *data, int length)
@@ -261,11 +257,17 @@ void setup()
     Serial.begin(115200);
     delay(1000);
     Serial.println("GYMIO ESP32-C3 TFT DISPLAY");
-    ledcSetup(kBacklightPwmChannel, kBacklightPwmFrequencyHz, kBacklightPwmResolutionBits);
-    ledcAttachPin(kTftBacklightPin, kBacklightPwmChannel);
-    setBacklightBrightness(kDefaultBacklightPercent);
-    Serial.printf("TFT backlight: %u%%\n", kDefaultBacklightPercent);
-    Serial.println("Initializing display controller at 40 MHz...");
+    Serial.printf("Hardware profile: %s\n", TftHardwareConfig::kProfileName);
+    ledcSetup(TftHardwareConfig::kBacklightPwmChannel,
+              TftHardwareConfig::kBacklightPwmFrequencyHz,
+              TftHardwareConfig::kBacklightPwmResolutionBits);
+    ledcAttachPin(TftHardwareConfig::kBacklightPin,
+                  TftHardwareConfig::kBacklightPwmChannel);
+    setBacklightEnabled(true);
+    Serial.printf("TFT backlight: %u%%\n", TftHardwareConfig::kDefaultBacklightPercent);
+    Serial.printf("Initializing %s controller at %lu MHz...\n",
+                  TftHardwareConfig::kController,
+                  static_cast<unsigned long>(TftHardwareConfig::kSpiWriteFrequencyHz / 1000000U));
 
     if (!display.init())
     {

@@ -1,6 +1,6 @@
 # Gymio hardware pinouts
 
-## ESP32-C3 Super Mini ST7796S display
+## ESP32-C3 Super Mini ST7796S display (existing profile)
 
 This wiring is used only by the standalone `tft-hardware-test` environment.
 The generic 3.5-inch 320x480 board must have `IM0=1`, `IM1=1`, and `IM2=1` for
@@ -34,6 +34,57 @@ Default brightness is configured by `kDefaultBacklightPercent` in
 GPIO5 is a control signal only and does not power the backlight. Keep TFT `VCC`
 on 5V/VBUS, do not connect `BL` to 5 V, do not use open-drain mode, and retain a
 common ground between the TFT and ESP32-C3.
+
+## ESP32-C3-MINI-1 ST7796S display (new profile)
+
+This profile is for the standalone Gymio TFT display built with an
+ESP32-C3-MINI-1 module on a small USB-C development board. Select PlatformIO
+environment `tft-c3-mini-1`. The generic 3.5-inch TFT uses an ST7796S
+controller, 320x480 resolution, and 4-wire SPI with `IM0=1`, `IM1=1`, and
+`IM2=1`.
+
+| TFT pin | ESP32-C3-MINI-1 pin | Purpose |
+| --- | --- | --- |
+| VCC | VIN / USB 5V | TFT module power; never use the 3.3 V output. |
+| GND | GND | Common power and signal ground. |
+| SCL | GPIO5 | SPI SCK, not I2C SCL. |
+| SDA | GPIO6 | SPI MOSI, not I2C SDA. |
+| CS | GPIO2 | SPI chip select. |
+| DC | GPIO4 | Data/command. |
+| RST | GPIO8 | Display reset. |
+| BL | GPIO0 | Active-high 3.3 V backlight control/PWM signal. |
+| SDA-OF | Not connected | Unused; no MISO/readback is required. |
+
+### Power topology
+
+```text
+USB-C 5V
+   |
+   +--> ESP32-C3 board
+   |
+   +--> VIN/VBUS --> TFT VCC
+
+ESP32 GND --------> TFT GND
+```
+
+The TFT PCB includes an onboard 3.3 V regulator marked `6206A ... /33` and has
+been tested successfully from VIN/USB VBUS at approximately 5 V. Do not power
+TFT `VCC` from the ESP32-C3's 3.3 V output. SPI and control signals remain
+3.3 V logic, and no TFT MISO connection is used.
+
+### Backlight control
+
+On this tested module, `BL` is a logic-level input to the TFT PCB's backlight
+circuit. GPIO0 is only a control signal; it does not source the LED backlight
+power. Firmware supports active-high on/off control and 20 kHz, 8-bit LEDC PWM
+through `setBacklightBrightness(percent)`. The default is 100%.
+
+GPIO0 was selected after hardware testing showed that connecting this TFT's BL
+input to GPIO9 interfered with the ESP32-C3 boot strap and could leave the chip
+in download mode. Do not reconnect BL to GPIO9.
+
+The profile uses a conservative 20 MHz SPI write clock. The existing Super Mini
+profile and all gate/OLED/ToF pin assignments remain unchanged.
 
 ## Legacy ESP32-C3 gate wiring
 

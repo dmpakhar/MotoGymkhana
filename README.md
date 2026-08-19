@@ -19,7 +19,8 @@ Current prerelease: **0.2.0**
 - Absolute session best, attempt reassignment, invalidation, and revalidation.
 - ESP-NOW gate-to-TFT link that does not consume a phone Wi-Fi client slot.
 - Sunlight-oriented 480x320 TFT UI with GPIO5 PWM backlight control.
-- ESP32-S3 N16R8/N8R8 gate targets and an ESP32-C3 TFT target.
+- ESP32-S3 N16R8/N8R8 gate targets plus ESP32-C3 Super Mini and
+  ESP32-C3-MINI-1 TFT profiles.
 
 ## Quick start
 
@@ -52,6 +53,8 @@ To build and upload the optional TFT display:
 ```sh
 pio run -e tft-hardware-test -t upload
 ```
+
+For the new ESP32-C3-MINI-1 wiring, use `tft-c3-mini-1` instead.
 
 The environment name is retained for compatibility, but it builds the current
 live TFT application. Both devices must use the same channel configured by

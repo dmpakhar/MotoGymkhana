@@ -10,6 +10,7 @@ instructions, see [Build and flash Gymio](BUILD.md).
 | `esp32-s3` | ESP32-S3 DevKitC-1 N16R8, 16 MB flash / 8 MB octal PSRAM. |
 | `esp32-s3-n8r8` | ESP32-S3 DevKitC-1 N8R8, 8 MB flash / 8 MB octal PSRAM. |
 | `tft-hardware-test` | ESP32-C3 Super Mini + ST7796S live display application (legacy environment name). |
+| `tft-c3-mini-1` | ESP32-C3-MINI-1 + ST7796S live display application. |
 
 Build all targets individually:
 
@@ -17,6 +18,7 @@ Build all targets individually:
 pio run -e esp32-s3
 pio run -e esp32-s3-n8r8
 pio run -e tft-hardware-test
+pio run -e tft-c3-mini-1
 ```
 
 Upload a selected target:
@@ -56,9 +58,9 @@ best time and best rider, or a waiting screen while the start gate is
 unavailable. No sensor, local timer, distance, touch, or gate application code
 is included.
 
-The TFT uses GPIO5 LEDC PWM at 20 kHz/8-bit resolution for its active-high
-backlight input. The default is 100%; change `kDefaultBacklightPercent` for a
-different fixed startup brightness.
+The TFT uses the profile-selected BL pin with LEDC PWM at 20 kHz/8-bit
+resolution. The default is 100%; change `kDefaultBacklightPercent` in
+`TftHardwareConfig.h` for a different fixed startup brightness.
 
 ## Source layout
 

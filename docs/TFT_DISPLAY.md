@@ -2,13 +2,19 @@
 
 ## Purpose
 
-The optional display node is an ESP32-C3 Super Mini connected to a generic
-3.5-inch ST7796S panel. It is display-only: timing, riders, history, and sensor
-decisions remain on the ESP32-S3 gate controller.
+The optional display node is an ESP32-C3 connected to a generic 3.5-inch
+ST7796S panel. It is display-only: timing, riders, history, and sensor decisions
+remain on the ESP32-S3 gate controller.
 
 The PlatformIO environment is named `tft-hardware-test` for compatibility with
 the original hardware test, but it now builds `src/tft/GymioTftDisplay.cpp`, the
-live Gymio display application.
+live Gymio display application. A second environment, `tft-c3-mini-1`, selects
+the new ESP32-C3-MINI-1 wiring profile.
+
+| Profile | Environment | Pins (SCK/MOSI/CS/DC/RST/BL) | SPI |
+| --- | --- | --- | --- |
+| ESP32-C3 Super Mini | `tft-hardware-test` | 4/6/7/3/10/5 | 40 MHz |
+| ESP32-C3-MINI-1 | `tft-c3-mini-1` | 5/6/2/4/8/0 | 20 MHz |
 
 ## Display behavior
 
@@ -23,8 +29,9 @@ At boot, `WAITING` is shown until a valid frame arrives. `NO DATA` is shown when
 the display previously received data but no frame has arrived for 1.5 seconds.
 `RADIO ERROR` means ESP-NOW receiver initialization failed.
 
-Rendering uses write-only SPI at 40 MHz. The timer uses a small sprite per
-character and updates only changed characters to minimize visible refresh.
+Rendering uses write-only SPI at the selected profile's frequency. The timer
+uses a small sprite per character and updates only changed characters to
+minimize visible refresh.
 
 ## ESP-NOW link
 
@@ -53,9 +60,9 @@ must not contain secrets.
 
 ## Backlight
 
-This specific panel was tested with `BL` connected directly to GPIO5 as a
-3.3 V logic signal. LOW reduced/disabled the backlight and HIGH produced maximum
-brightness, confirming active-high control on the tested board.
+The tested panels accept `BL` as an active-high 3.3 V logic signal. The existing
+Super Mini profile uses GPIO5; the new C3-MINI-1 profile uses GPIO0. LOW/0%
+disables or dims the backlight and HIGH/100% produces maximum brightness.
 
 Firmware configures LEDC channel 0 at 20 kHz with 8-bit resolution:
 
@@ -66,15 +73,17 @@ setBacklightBrightness(100); // valid range: 0..100
 The function clamps values above 100. Startup brightness is selected by
 `kDefaultBacklightPercent`, currently 100.
 
-GPIO5 is not a power supply. TFT `VCC` remains connected to USB 5V/VBUS, and the
-TFT and ESP32-C3 must share ground. The direct GPIO5 connection applies only to
-the tested module whose onboard BL control circuit was confirmed experimentally.
+The selected BL GPIO is not a power supply. TFT `VCC` remains connected to USB
+5V/VBUS, and the TFT and ESP32-C3 must share ground. Direct logic control applies
+only to a module whose onboard BL control circuit has been confirmed.
 
 ## Build and upload
 
 ```sh
 pio run -e tft-hardware-test
 pio run -e tft-hardware-test -t upload
+pio run -e tft-c3-mini-1
+pio run -e tft-c3-mini-1 -t upload
 pio device monitor -b 115200
 ```
 

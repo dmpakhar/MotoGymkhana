@@ -9,6 +9,12 @@ All notable changes are documented here. Versions follow Semantic Versioning.
 - Added separate build and flash workflows for both ESP32-S3 gate variants and
   the ESP32-C3 TFT module.
 
+### Added
+
+- New `tft-c3-mini-1` display profile for ESP32-C3-MINI-1 with ST7796S wiring
+  on GPIO5/6/2/4/8/0 and a conservative 20 MHz SPI clock. BL uses GPIO0 to
+  avoid the GPIO9 boot strap.
+
 ## 0.2.0 - 2026-08-17
 
 ### Added
