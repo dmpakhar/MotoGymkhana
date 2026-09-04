@@ -31,7 +31,31 @@ GateEvent GateDetector::update(int16_t distanceMm, uint32_t nowMs)
         nextSampleIndex_ = (nextSampleIndex_ + 1) % Config::kGateFilterSamples;
     }
 
-    const bool objectPresent = filteredDistanceMm() <= triggerDistanceMm_;
+    // Entry must react to a short, fast crossing. Using the five-sample average
+    // here can hide two genuine close readings among far background samples.
+    // Release remains filtered to prevent a single far/INF sample from arming
+    // the finish while the rider is still occupying the gate.
+    const int16_t decisionDistanceMm = gateOccupied_
+                                           ? filteredDistanceMm()
+                                           : normalizedDistanceMm;
+    const bool objectPresent = decisionDistanceMm <= triggerDistanceMm_;
+
+    // A fast motorcycle may cross the sensor beam within one 50 ms ranging
+    // frame. The VL53L1X driver has already rejected invalid/range-error
+    // measurements before they reach this detector, so accept one sample when
+    // it is comfortably inside the gate threshold. Keep normal confirmation
+    // for marginal readings near the threshold.
+    const int16_t immediateEntryThresholdMm =
+        triggerDistanceMm_ > Config::kGateImmediateEntryMarginMm
+            ? triggerDistanceMm_ - Config::kGateImmediateEntryMarginMm
+            : 0;
+    if (!gateOccupied_ && normalizedDistanceMm <= immediateEntryThresholdMm)
+    {
+        gateOccupied_ = true;
+        candidateActive_ = false;
+        return GateEvent::CrossingConfirmed;
+    }
+
     const uint16_t requiredStableMs = gateOccupied_ ? Config::kGateReleaseMs : Config::kGateConfirmMs;
     const bool stateWouldChange = objectPresent != gateOccupied_;
 

@@ -15,6 +15,12 @@ All notable changes are documented here. Versions follow Semantic Versioning.
   on GPIO5/6/2/4/8/0 and a conservative 20 MHz SPI clock. BL uses GPIO0 to
   avoid the GPIO9 boot strap.
 
+### Changed
+
+- Gate entry now uses raw distance, immediately accepts a valid sample at least
+  300 mm inside the threshold, and retains 50 ms confirmation near the edge.
+  Release remains filtered with 250 ms confirmation for stability.
+
 ## 0.2.0 - 2026-08-17
 
 ### Added

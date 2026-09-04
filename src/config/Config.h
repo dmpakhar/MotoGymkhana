@@ -34,7 +34,11 @@ constexpr int16_t kGateApproachMm = 150;
 // The VL53L1X reports -1 when it has no target. For gate decisions that means
 // the farthest possible reading, not a near object.
 constexpr int16_t kTofNoTargetDistanceMm = 4000;
-constexpr uint16_t kGateConfirmMs = 150;
+// Entry uses raw ranging so a fast crossing is not diluted by the moving
+// average. A clearly close sample may confirm immediately; readings close to
+// the configured threshold still require two samples to reject edge noise.
+constexpr int16_t kGateImmediateEntryMarginMm = 300;
+constexpr uint16_t kGateConfirmMs = 50;
 constexpr uint16_t kGateReleaseMs = 250;
 
 constexpr uint32_t kResultDisplayMs = 5000;
