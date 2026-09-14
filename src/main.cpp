@@ -93,6 +93,8 @@ void loop()
     }
 
     const uint32_t nowMs = millis();
+    const bool twoGateMode = webServer.isFinishGateConnected(nowMs);
+    display.setTwoGateMode(twoGateMode);
 
     int16_t requestedGateLimitMm = 0;
     if (webServer.takeGateLimitUpdate(requestedGateLimitMm))
@@ -127,12 +129,31 @@ void loop()
     }
 
     TimerEvent timerEvent = TimerEvent::None;
-    if (!webServer.isSensorSetupActive())
+    if (!webServer.isSensorSetupActive() && !webServer.isFinishGateSetupActive())
     {
+        const bool finishCrossing = webServer.takeFinishCrossing();
+        bool localCrossing = gateEvent == GateEvent::CrossingConfirmed;
+        if (!twoGateMode && timer.state() == TimerState::RunningArmed && distanceMm >= 0)
+        {
+            const int16_t finishThresholdMm =
+                gateDetector.triggerDistanceMm() > Config::kSingleGateFinishImmediateMarginMm
+                    ? gateDetector.triggerDistanceMm() - Config::kSingleGateFinishImmediateMarginMm
+                    : 0;
+            localCrossing = localCrossing || distanceMm <= finishThresholdMm;
+        }
+        static bool previousTwoGateMode = false;
+        if (twoGateMode != previousTwoGateMode)
+        {
+            previousTwoGateMode = twoGateMode;
+            Serial.println(twoGateMode ? "Timer mode: TWO GATES"
+                                       : "Timer mode: SINGLE GATE");
+        }
         timerEvent = timer.update(
-            gateEvent == GateEvent::CrossingConfirmed,
+            localCrossing,
             gateEvent == GateEvent::GateCleared,
-            nowMs);
+            nowMs,
+            twoGateMode,
+            finishCrossing);
     }
 
     if (distanceMm < 0)

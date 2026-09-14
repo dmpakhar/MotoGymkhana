@@ -6,13 +6,9 @@
 
 bool ToFSensor::begin()
 {
-#if defined(GYMIO_TARGET_ESP32_S3)
-    // Existing S3 wiring keeps the sensor on a dedicated hardware I2C bus.
+    // The supported N8R8 main gate keeps VL53L1X on a dedicated hardware I2C
+    // controller. Wire is already used by the OLED on GPIO10/GPIO11.
     TwoWire &tofWire = Wire1;
-#else
-    // C3 shares its single I2C bus with the OLED; device addresses differ.
-    TwoWire &tofWire = Wire;
-#endif
 
     tofWire.begin(Config::kTofSdaPin, Config::kTofSclPin);
 

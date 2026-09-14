@@ -4,21 +4,11 @@
 
 namespace Config
 {
-#if defined(GYMIO_TARGET_ESP32_S3)
-// Existing ESP32-S3 prototype wiring: two physically separate I2C buses.
+// Main gate ESP32-S3 N8R8 wiring: two physically separate I2C buses.
 constexpr uint8_t kOledSdaPin = 10;
 constexpr uint8_t kOledSclPin = 11;
-// Kept on a separate I2C bus so GPIO4/GPIO5 can be ruled out while
-// diagnosing the original ESP32-S3 wiring.
 constexpr uint8_t kTofSdaPin = 6;
 constexpr uint8_t kTofSclPin = 7;
-#else
-// ESP32-C3 uses one shared I2C bus. The devices have different addresses.
-constexpr uint8_t kOledSdaPin = 4;
-constexpr uint8_t kOledSclPin = 5;
-constexpr uint8_t kTofSdaPin = 4;
-constexpr uint8_t kTofSclPin = 5;
-#endif
 
 constexpr uint8_t kOledAddress = 0x3C;
 
@@ -38,6 +28,10 @@ constexpr int16_t kTofNoTargetDistanceMm = 4000;
 // average. A clearly close sample may confirm immediately; readings close to
 // the configured threshold still require two samples to reject edge noise.
 constexpr int16_t kGateImmediateEntryMarginMm = 300;
+// Once a one-gate attempt is armed, accept a fast return crossing from one
+// valid sample. The smaller margin makes the finish easier to catch without
+// treating readings right at the configured threshold as a finish.
+constexpr int16_t kSingleGateFinishImmediateMarginMm = 100;
 constexpr uint16_t kGateConfirmMs = 50;
 constexpr uint16_t kGateReleaseMs = 250;
 
@@ -52,5 +46,7 @@ constexpr uint8_t kWifiAccessPointChannel = 1;
 // does not consume a SoftAP client slot or DHCP lease.
 constexpr uint8_t kWifiAccessPointMaxConnections = 15;
 constexpr uint16_t kDisplayBroadcastIntervalMs = 100;
+constexpr uint16_t kFinishGateHeartbeatMs = 250;
+constexpr uint16_t kFinishGateTimeoutMs = 1500;
 constexpr char kMdnsHostname[] = "gymio";
 } // namespace Config

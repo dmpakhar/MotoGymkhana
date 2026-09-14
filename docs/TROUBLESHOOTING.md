@@ -28,6 +28,25 @@ association and does not consume one of these client slots.
 
 The TFT does not need the `Gymio` password, an IP address, DHCP, or MAC pairing.
 
+## Start gate stays in `1GM`
+
+- Power the finish gate and wait for its sensor calibration.
+- Confirm both gates use the same `kWifiAccessPointChannel` value.
+- The finish serial log should contain `ESP-NOW finish link ready`.
+- Keep the gates nearby while testing radio connectivity.
+- Rebuild and flash both gates after changing `FinishGateProtocol.h`.
+
+The main gate enters `2GM` after receiving finish heartbeats and returns to
+`1GM` when they are absent for 1.5 seconds. Mode is latched for an active run,
+so a run that began in `2GM` still expects the remote finish event.
+
+## Finish-gate setup does not respond
+
+Remote setup is available only while the timer is calibrated and `READY`.
+Confirm the finish gate is online, then enable its setup panel before changing
+the threshold. Commands are retried until acknowledged, but incompatible old
+firmware cannot acknowledge them.
+
 ## TFT shows `NO DATA`
 
 The TFT received frames previously but none for at least 1.5 seconds. Confirm
@@ -39,21 +58,19 @@ changed. Restarting only the TFT does not require restarting the gate.
 - TFT `VCC` must be on stable USB 5V/VBUS, not the ESP32 3.3 V regulator.
 - TFT and ESP32-C3 grounds must be common.
 - Confirm `IM0=1`, `IM1=1`, and `IM2=1` for 4-wire SPI.
-- Verify every signal against the selected profile in [Hardware](HARDWARE.md);
-  the Super Mini and C3-MINI-1 profiles use different SCK/CS/DC/RST/BL pins.
+- Verify every signal against the C3-MINI-1 profile in [Hardware](HARDWARE.md).
 - Run the serial monitor at 115200 and check for TFT or sprite initialization errors.
 
 ## Backlight does not respond
 
 The direct-control result is specific to the tested TFT PCB. Its `BL` pin was
-confirmed active-high: 0% is off/dim and 100% is maximum. The Super Mini uses
-GPIO5 and C3-MINI-1 uses GPIO0. Do not assume a different panel's BL pin is
+confirmed active-high: 0% is off/dim and 100% is maximum on GPIO0. Do not assume a different panel's BL pin is
 logic-level; verify its schematic or test safely.
 Never attempt to power a raw backlight from an ESP32 GPIO.
 
 ## Timer digits flicker
 
-The current renderer sends only changed glyphs at 40 MHz. Long or poor-quality
+The current renderer sends only changed glyphs at 20 MHz. Long or poor-quality
 SPI wiring can require a lower clock but will lengthen visible updates. Keep SPI
 wires short, provide a stable 5 V display supply, and retain a common ground.
 

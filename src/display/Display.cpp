@@ -23,8 +23,15 @@ void Display::showHeader()
     oled_.setTextSize(1);
     oled_.setCursor(0, 0);
     oled_.print("GYMIO");
+    oled_.setCursor(38, 0);
+    oled_.print(twoGateMode_ ? "2GM" : "1GM");
     oled_.setCursor(70, 0);
     oled_.print(riderName_);
+}
+
+void Display::setTwoGateMode(bool enabled)
+{
+    twoGateMode_ = enabled;
 }
 
 void Display::setRiderName(const char *name)

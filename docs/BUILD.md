@@ -1,199 +1,74 @@
 # Build and flash Gymio
 
-Gymio has two independent firmware applications:
+## Supported targets
 
-| Device | PlatformIO environment | Application |
+| Device | PlatformIO environment | Hardware |
 | --- | --- | --- |
-| Main gate, ESP32-S3 N8R8 | `esp32-s3-n8r8` | Sensor, timer, OLED, Wi-Fi pages, API, and ESP-NOW transmitter. |
-| Main gate, ESP32-S3 N16R8 | `esp32-s3` | Same gate application for the 16 MB flash board. |
-| TFT module, ESP32-C3 Super Mini | `tft-hardware-test` | ST7796S UI, backlight PWM, and ESP-NOW receiver. |
-| TFT module, ESP32-C3-MINI-1 | `tft-c3-mini-1` | Same TFT application with the new C3-MINI-1 pin profile and 20 MHz SPI. |
+| Main/start gate | `esp32-s3-n8r8` | ESP32-S3 N8R8, SSD1306, VL53L1X |
+| Finish gate | `finish-gate-s3-mini` | ESP32-S3 Mini N4R2, SSD1306, VL53L1X, battery ADC |
+| Large display | `tft-c3-mini-1` | ESP32-C3-MINI-1, ST7796S 320x480 |
 
-The TFT environment retains its original hardware-test name for compatibility,
-but it builds the current live display application.
+Run commands from the repository root. PlatformIO downloads the Arduino
+framework and declared libraries on the first build.
 
-## Requirements
-
-- PlatformIO Core or the PlatformIO IDE extension;
-- a data-capable USB cable for each board;
-- Python and USB drivers required by PlatformIO for the connected boards;
-- this repository checked out locally.
-
-Run all commands from the repository root, where `platformio.ini` is located.
-PlatformIO downloads the configured framework and libraries automatically on
-the first build.
-
-## Identify serial ports
-
-Connect the board and list detected ports:
+## Identify ports
 
 ```sh
 pio device list
 ```
 
-When multiple boards are connected, always pass the intended port explicitly:
+When more than one board is connected, always select the port explicitly. On
+macOS it normally looks like `/dev/cu.usbmodem...`; Linux commonly uses
+`/dev/ttyACM...`, and Windows uses `COM...`.
 
-```sh
---upload-port /dev/cu.usbmodemXXX
-```
-
-Linux ports commonly look like `/dev/ttyACM0` or `/dev/ttyUSB0`; Windows ports
-look like `COM3`. Port names can change after reconnecting a board.
-
-## Build and flash the main gate
-
-First identify whether the ESP32-S3 board is N8R8 or N16R8. Using the wrong
-environment may select an incompatible flash size or partition table.
-
-### N8R8 gate
-
-Build:
+## Main gate
 
 ```sh
 pio run -e esp32-s3-n8r8
+pio run -e esp32-s3-n8r8 -t upload --upload-port MAIN_PORT
 ```
 
-Upload using automatic port selection:
+The main gate owns timing, history, riders, Wi-Fi, the web API, and selection
+between one-gate and two-gate operation.
+
+## Finish gate
 
 ```sh
-pio run -e esp32-s3-n8r8 -t upload
+pio run -e finish-gate-s3-mini
+pio run -e finish-gate-s3-mini -t upload --upload-port FINISH_PORT
 ```
 
-Upload to an explicit port:
+The finish gate sends heartbeat, sensor state, crossing counter, battery
+voltage, and calibration data to the main gate over ESP-NOW.
 
-```sh
-pio run -e esp32-s3-n8r8 -t upload --upload-port /dev/cu.usbmodemXXX
-```
-
-### N16R8 gate
-
-Build and upload:
-
-```sh
-pio run -e esp32-s3
-pio run -e esp32-s3 -t upload
-```
-
-After boot, the gate serial output should report the firmware version, sensor
-and OLED initialization, the `Gymio` access point, and:
-
-```text
-Display ESP-NOW broadcaster ready.
-```
-
-Connect a phone to `Gymio` with the configured password, then verify
-`http://192.168.4.1/main` before diagnosing mDNS.
-
-## Build and flash a TFT module
-
-### Existing ESP32-C3 Super Mini profile
-
-Build:
-
-```sh
-pio run -e tft-hardware-test
-```
-
-Upload using automatic port selection:
-
-```sh
-pio run -e tft-hardware-test -t upload
-```
-
-Upload to an explicit port:
-
-```sh
-pio run -e tft-hardware-test -t upload --upload-port /dev/cu.usbmodemXXX
-```
-
-After boot, the TFT serial output should report successful display, sprite,
-backlight, and ESP-NOW initialization, including:
-
-```text
-Display ESP-NOW receiver ready.
-```
-
-The screen initially shows `WAITING`. It changes to the live gate state after
-receiving a valid frame. The TFT does not join the `Gymio` Wi-Fi network and
-does not require its password or an IP address.
-
-### New ESP32-C3-MINI-1 profile
-
-Build and upload:
+## Large TFT
 
 ```sh
 pio run -e tft-c3-mini-1
-pio run -e tft-c3-mini-1 -t upload
-```
-
-With an explicit port:
-
-```sh
-pio run -e tft-c3-mini-1 -t upload --upload-port /dev/cu.usbmodemXXX
-```
-
-This selects compile-time flag `GYMIO_TFT_ESP32_C3_MINI_1`, the wiring in
-[Hardware](HARDWARE.md), and a 20 MHz SPI write clock. Do not use the existing
-`tft-hardware-test` environment for this wiring.
-
-## Flash both devices after protocol changes
-
-The gate and TFT share `src/protocol/DisplayStatusProtocol.h`. If that file or
-`kWifiAccessPointChannel` changes, rebuild and flash both devices:
-
-```sh
-pio run -e esp32-s3-n8r8 -t upload --upload-port GATE_PORT
 pio run -e tft-c3-mini-1 -t upload --upload-port TFT_PORT
 ```
 
-Replace `GATE_PORT` and `TFT_PORT` with ports returned by `pio device list`.
-The order does not matter. During an upgrade, `WAITING` or `NO DATA` is expected
-until both endpoints run compatible firmware on the same channel.
+The TFT is display-only. It receives timer/rider/best data over ESP-NOW and
+does not join the `Gymio` Wi-Fi access point.
 
-## Serial monitoring
+## Build everything
 
-All environments use 115200 baud:
-
-```sh
-pio device monitor --port /dev/cu.usbmodemXXX --baud 115200
-```
-
-Close the monitor before uploading if the platform cannot share the serial
-port. Exit PlatformIO Monitor with `Ctrl+C`.
-
-## Build every supported target
-
-Use this before a release or after changing shared source:
+Run this after shared protocol or configuration changes:
 
 ```sh
-pio run -e tft-hardware-test -e tft-c3-mini-1 -e esp32-s3 -e esp32-s3-n8r8
+pio run -e esp32-s3-n8r8 -e finish-gate-s3-mini -e tft-c3-mini-1
 ```
 
-All four environments must report `SUCCESS`.
+All three environments must report `SUCCESS`. When an ESP-NOW protocol or
+radio channel changes, rebuild and flash every affected endpoint.
 
-## Clean rebuild
+## Serial monitor
 
-If incremental output appears stale, clean only the affected environment and
-build it again:
+All targets use 115200 baud:
 
 ```sh
-pio run -e tft-hardware-test -t clean
-pio run -e tft-hardware-test
+pio device monitor --port DEVICE_PORT --baud 115200
 ```
 
-Substitute the appropriate gate environment when cleaning a gate build.
-
-## Build artifacts
-
-PlatformIO writes generated files under `.pio/build/<environment>/`. Important
-artifacts include:
-
-- `firmware.elf` for symbols and debugging;
-- `firmware.bin` for the application image;
-- `bootloader.bin` and `partitions.bin` used by the upload process.
-
-Normally, use `pio run ... -t upload` rather than manually writing individual
-binary files, because PlatformIO applies the correct addresses and board setup.
-
-For wiring, see [Hardware](HARDWARE.md). For runtime connection problems, see
-[Troubleshooting](TROUBLESHOOTING.md).
+Close the monitor before uploading if it owns the port. Generated binaries are
+stored under `.pio/build/<environment>/`.

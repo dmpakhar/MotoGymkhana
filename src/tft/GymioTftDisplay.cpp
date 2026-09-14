@@ -69,7 +69,9 @@ char previousTimerText[10] = "         ";
 char displayedRider[25] = "NONAME";
 char displayedBestRider[25] = "";
 char displayedState[16] = "";
+uint8_t displayedGateCount = 0;
 uint32_t displayedBestMs = UINT32_MAX;
+bool readyMessageDisplayed = false;
 portMUX_TYPE statusMux = portMUX_INITIALIZER_UNLOCKED;
 DisplayStatusProtocol::Frame pendingFrame;
 volatile bool framePending = false;
@@ -143,8 +145,36 @@ void drawGymioUi()
     drawCenteredAt("--:--.---", 394, 262, &fonts::Font2, TFT_WHITE);
 }
 
-void updateTimer(uint32_t elapsedMs)
+void updateTimer(uint32_t elapsedMs, bool showReadyMessage = false)
 {
+    constexpr int32_t cellWidth = 48;
+    constexpr int32_t startX = 24;
+    constexpr int32_t startY = 105;
+
+    if (showReadyMessage)
+    {
+        if (!readyMessageDisplayed)
+        {
+            display.fillRect(startX, startY, cellWidth * 9, 90, kCardColor);
+            display.setFont(&fonts::Font4);
+            display.setTextSize(2);
+            display.setTextColor(TFT_WHITE);
+            display.setTextDatum(lgfx::textdatum_t::middle_center);
+            display.drawString("READY TO GO", 240, 150);
+            display.setTextSize(1);
+            readyMessageDisplayed = true;
+        }
+        return;
+    }
+
+    if (readyMessageDisplayed)
+    {
+        display.fillRect(startX, startY, cellWidth * 9, 90, kCardColor);
+        memset(previousTimerText, ' ', sizeof(previousTimerText) - 1U);
+        previousTimerText[sizeof(previousTimerText) - 1U] = '\0';
+        readyMessageDisplayed = false;
+    }
+
     const uint32_t minutes = elapsedMs / 60000U;
     const uint32_t seconds = (elapsedMs / 1000U) % 60U;
     const uint32_t milliseconds = elapsedMs % 1000U;
@@ -153,10 +183,6 @@ void updateTimer(uint32_t elapsedMs)
              static_cast<unsigned long>(minutes),
              static_cast<unsigned long>(seconds),
              static_cast<unsigned long>(milliseconds));
-
-    constexpr int32_t cellWidth = 48;
-    constexpr int32_t startX = 24;
-    constexpr int32_t startY = 105;
 
     for (size_t i = 0; i < 9; ++i)
     {
@@ -193,6 +219,19 @@ void updateHeaderState(const char *state)
     displayedState[sizeof(displayedState) - 1U] = '\0';
     display.fillRect(340, 5, 135, 48, kBackgroundColor);
     drawCenteredAt(displayedState, 408, 30, &fonts::Font2, kAccentColor);
+}
+
+void updateGateCount(uint8_t gateCount)
+{
+    gateCount = gateCount == 2 ? 2 : 1;
+    if (gateCount == displayedGateCount)
+    {
+        return;
+    }
+    displayedGateCount = gateCount;
+    display.fillRect(195, 5, 135, 48, kBackgroundColor);
+    drawCenteredAt(gateCount == 2 ? "2 GATES" : "1 GATE",
+                   262, 30, &fonts::Font2, kAccentColor);
 }
 
 void updateRider(const char *rider)
@@ -245,8 +284,9 @@ void receiveStatus(uint32_t nowMs)
     frame.riderName[sizeof(frame.riderName) - 1U] = '\0';
     frame.absoluteBestRider[sizeof(frame.absoluteBestRider) - 1U] = '\0';
     lastStatusPacketMs = nowMs;
+    updateGateCount(frame.gateCount);
     updateHeaderState(frame.state);
-    updateTimer(frame.timeMs);
+    updateTimer(frame.timeMs, strcmp(frame.state, "READY") == 0);
     updateRider(frame.riderName);
     updateBest(frame.absoluteBestMs, frame.absoluteBestRider);
 }
@@ -285,6 +325,7 @@ void setup()
     }
     display.fillScreen(kBackgroundColor);
     drawCenteredAt("GYMIO", 70, 30, &fonts::Font4, TFT_WHITE);
+    drawCenteredAt("1 GATE", 262, 30, &fonts::Font2, kMutedColor);
     drawCenteredAt("WAITING", 408, 30, &fonts::Font2, kMutedColor);
 
     display.fillRoundRect(16, 58, 448, 158, 18, kCardColor);

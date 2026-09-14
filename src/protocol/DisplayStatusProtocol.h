@@ -11,7 +11,8 @@ struct Frame
 {
     uint32_t magic = kMagic;
     uint8_t version = kVersion;
-    uint8_t reserved[3]{};
+    uint8_t gateCount = 1;
+    uint8_t reserved[2]{};
     uint32_t sequence = 0;
     uint32_t timeMs = 0;
     uint32_t absoluteBestMs = 0;

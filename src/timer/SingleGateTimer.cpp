@@ -2,13 +2,19 @@
 
 #include "config/Config.h"
 
-TimerEvent SingleGateTimer::update(bool crossingConfirmed, bool gateCleared, uint32_t nowMs)
+TimerEvent SingleGateTimer::update(
+    bool crossingConfirmed,
+    bool gateCleared,
+    uint32_t nowMs,
+    bool twoGateMode,
+    bool finishCrossingConfirmed)
 {
     switch (state_)
     {
     case TimerState::Ready:
         if (crossingConfirmed)
         {
+            twoGateAttempt_ = twoGateMode;
             startedAtMs_ = nowMs; // Capture the confirmed crossing timestamp.
             state_ = TimerState::RunningAwaitingClear;
             return TimerEvent::Started;
@@ -23,7 +29,7 @@ TimerEvent SingleGateTimer::update(bool crossingConfirmed, bool gateCleared, uin
         break;
 
     case TimerState::RunningArmed:
-        if (crossingConfirmed)
+        if (twoGateAttempt_ ? finishCrossingConfirmed : crossingConfirmed)
         {
             resultMs_ = nowMs - startedAtMs_;
             resultShownAtMs_ = nowMs;
@@ -36,6 +42,7 @@ TimerEvent SingleGateTimer::update(bool crossingConfirmed, bool gateCleared, uin
         if (nowMs - resultShownAtMs_ >= Config::kResultDisplayMs)
         {
             state_ = TimerState::Ready;
+            twoGateAttempt_ = false;
             return TimerEvent::ResetToReady;
         }
         break;

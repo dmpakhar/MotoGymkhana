@@ -21,7 +21,12 @@ enum class TimerEvent
 class SingleGateTimer
 {
 public:
-    TimerEvent update(bool crossingConfirmed, bool gateCleared, uint32_t nowMs);
+    TimerEvent update(
+        bool crossingConfirmed,
+        bool gateCleared,
+        uint32_t nowMs,
+        bool twoGateMode = false,
+        bool finishCrossingConfirmed = false);
 
     TimerState state() const;
     uint32_t elapsedMs(uint32_t nowMs) const;
@@ -32,4 +37,5 @@ private:
     uint32_t startedAtMs_ = 0;
     uint32_t resultMs_ = 0;
     uint32_t resultShownAtMs_ = 0;
+    bool twoGateAttempt_ = false;
 };

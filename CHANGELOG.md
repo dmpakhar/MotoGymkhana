@@ -6,20 +6,27 @@ All notable changes are documented here. Versions follow Semantic Versioning.
 
 ### Documentation
 
-- Added separate build and flash workflows for both ESP32-S3 gate variants and
-  the ESP32-C3 TFT module.
+- Updated build, wiring, UI, API, ESP-NOW, and troubleshooting documentation for
+  the three supported production modules.
 
 ### Added
 
 - New `tft-c3-mini-1` display profile for ESP32-C3-MINI-1 with ST7796S wiring
   on GPIO5/6/2/4/8/0 and a conservative 20 MHz SPI clock. BL uses GPIO0 to
   avoid the GPIO9 boot strap.
+- ESP32-S3 Mini N4R2 finish-gate profile with OLED battery status, VL53L1X,
+  ESP-NOW heartbeat/crossings, and remote sensor setup.
+- Automatic one-/two-gate selection with `1GM`/`2GM` OLED indication.
+- Persisted minimum valid attempt time and automatic `BELOW MINIMUM` status.
 
 ### Changed
 
 - Gate entry now uses raw distance, immediately accepts a valid sample at least
   300 mm inside the threshold, and retains 50 ms confirmation near the edge.
   Release remains filtered with 250 ms confirmation for stability.
+- The large TFT shows a high-visibility `READY TO GO` message in READY state.
+- Removed unused N16R8, C3 Super Mini TFT, and temporary battery diagnostic
+  PlatformIO configurations.
 
 ## 0.2.0 - 2026-08-17
 
