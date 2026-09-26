@@ -174,6 +174,54 @@ void Display::showResult(uint32_t resultMs)
     oled_.display();
 }
 
+void Display::showGateSetup(int16_t distanceMm)
+{
+    if (!initialized_)
+    {
+        return;
+    }
+
+    oled_.clearDisplay();
+    showHeader();
+    oled_.setTextSize(1);
+    oled_.setCursor(33, 14);
+    oled_.println("GATE SETUP");
+    oled_.setTextSize(2);
+    oled_.setCursor(25, 28);
+    if (distanceMm > 0)
+    {
+        oled_.print(distanceMm);
+        oled_.println(" mm");
+    }
+    else
+    {
+        oled_.println("  INF");
+    }
+    oled_.setTextSize(1);
+    oled_.setCursor(25, 54);
+    oled_.println("PRESS TO SET");
+    oled_.display();
+}
+
+void Display::showGateConfigured(int16_t distanceMm)
+{
+    if (!initialized_)
+    {
+        return;
+    }
+
+    oled_.clearDisplay();
+    showHeader();
+    oled_.setTextSize(1);
+    oled_.setCursor(30, 20);
+    oled_.println("GATE SET");
+    oled_.setTextSize(2);
+    oled_.setCursor(24, 38);
+    oled_.print(distanceMm);
+    oled_.println(" mm");
+    oled_.display();
+}
+
 void Display::showError(const char *message)
 {
     if (!initialized_)

@@ -16,6 +16,7 @@ class GateDetector
 public:
     GateEvent update(int16_t distanceMm, uint32_t nowMs);
     bool setTriggerDistanceMm(int16_t triggerDistanceMm);
+    bool setTriggerFromReferenceDistanceMm(int16_t referenceDistanceMm);
 
     bool isCalibrated() const;
     uint8_t calibrationSampleCount() const;

@@ -28,6 +28,14 @@ Frames contain a protocol marker/version, sequence number, timer milliseconds,
 timer state, gate count, rider, absolute best time, and absolute-best rider. Broadcasts are
 unencrypted and must not contain secrets.
 
+## Cancel button
+
+An optional normally-open push button connects `GPIO20` to `GND`. The firmware
+uses the internal pull-up and debounces the active-low input. A press broadcasts
+the cancel command five times over ESP-NOW; the main gate deduplicates it and
+stops only an active attempt without saving a history entry. Do not connect the
+button to 5 V.
+
 ## Backlight
 
 The tested TFT accepts `BL` as an active-high 3.3V control input on GPIO0.

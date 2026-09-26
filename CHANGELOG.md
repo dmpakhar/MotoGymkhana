@@ -7,24 +7,41 @@ All notable changes are documented here. Versions follow Semantic Versioning.
 ### Documentation
 
 - Updated build, wiring, UI, API, ESP-NOW, and troubleshooting documentation for
-  the three supported production modules.
+  the four supported build targets.
+- Documented the `Classic` and verified 1S `Battery Extended` power variants,
+  including TP4056 USB-C CC correction, boost supply, Schottky isolation,
+  limitations, and the unassigned planned battery-sense circuit.
+- Reworked the user guide into an event-oriented operating manual covering
+  riders, operators, gate modes, setup controls, displays, and recovery steps.
 
 ### Added
 
+- Compact `main-gate-s3-mini` profile with a GPIO8 attempt-cancel button and
+  blue/yellow/green state LEDs on GPIO9/12/13.
+- Two-step physical gate setup on the compact main gate: hold to enter setup,
+  short-press to save the live distance, then safely wait for the gate to clear.
+- Current-attempt cancellation from the main web UI or an optional TFT button
+  on GPIO20, transported to the main gate over deduplicated ESP-NOW commands.
 - New `tft-c3-mini-1` display profile for ESP32-C3-MINI-1 with ST7796S wiring
   on GPIO5/6/2/4/8/0 and a conservative 20 MHz SPI clock. BL uses GPIO0 to
   avoid the GPIO9 boot strap.
-- ESP32-S3 Mini N4R2 finish-gate profile with OLED battery status, VL53L1X,
+- ESP32-S3 Mini N4R2 finish-gate profile with OLED status, VL53L1X,
   ESP-NOW heartbeat/crossings, and remote sensor setup.
 - Automatic one-/two-gate selection with `1GM`/`2GM` OLED indication.
 - Persisted minimum valid attempt time and automatic `BELOW MINIMUM` status.
 
 ### Changed
 
+- Physical and web `Use current` setup now derive the threshold from a filtered
+  reference with a 150 mm safety margin. An `INF` reference normalizes to
+  3850 mm instead of being rejected or saved at the noisy boundary.
+
 - Gate entry now uses raw distance, immediately accepts a valid sample at least
   300 mm inside the threshold, and retains 50 ms confirmation near the edge.
   Release remains filtered with 250 ms confirmation for stability.
 - The large TFT shows a high-visibility `READY TO GO` message in READY state.
+- Removed battery measurement and indication from the finish-gate firmware,
+  ESP-NOW status, web UI, and hardware documentation.
 - Removed unused N16R8, C3 Super Mini TFT, and temporary battery diagnostic
   PlatformIO configurations.
 

@@ -15,6 +15,8 @@ public:
     bool isMdnsStarted() const;
     void beginAttempt();
     void recordAttempt(uint32_t durationMs);
+    void cancelAttempt();
+    bool takeAttemptCancellation();
     bool takeGateLimitUpdate(int16_t &limitMm);
     bool isSensorSetupActive() const;
     bool isFinishGateConnected(uint32_t nowMs);
@@ -69,7 +71,6 @@ private:
     volatile uint32_t lastFinishPacketMs_ = 0;
     volatile uint32_t finishBootId_ = 0;
     volatile uint32_t finishCrossingCount_ = 0;
-    volatile uint16_t finishBatteryMv_ = 0;
     volatile uint8_t finishFlags_ = 0;
     volatile int16_t finishDistanceMm_ = -1;
     volatile int16_t finishFilteredDistanceMm_ = -1;
@@ -80,6 +81,9 @@ private:
     uint8_t finishCommandType_ = 0;
     int16_t finishCommandValue_ = 0;
     volatile bool finishCommandPending_ = false;
+    volatile bool attemptCancellationPending_ = false;
+    volatile uint32_t controlBootId_ = 0;
+    volatile uint32_t controlSequence_ = 0;
     static MotoWebServer *instance_;
     static void receiveEspNow(const uint8_t *mac, const uint8_t *data, int length);
 
@@ -91,6 +95,7 @@ private:
     void handleRevalidateAttempt();
     void handleSetAttemptValidity(bool valid);
     void handleSetMinimumValidTime();
+    void handleCancelAttempt();
     void handleAssignAttempt();
     void handleRiders();
     void handleAddRider();

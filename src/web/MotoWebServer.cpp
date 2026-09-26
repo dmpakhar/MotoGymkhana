@@ -9,6 +9,7 @@
 #include "config/Version.h"
 #include "protocol/DisplayStatusProtocol.h"
 #include "protocol/FinishGateProtocol.h"
+#include "protocol/GateControlProtocol.h"
 
 namespace
 {
@@ -38,12 +39,14 @@ function renderHistory(data,riderData){if(document.activeElement&&document.activ
 async function refresh(){try{const [s,h,r]=await Promise.all([api('/api/status'),api('/api/history'),api('/api/riders')]);distance.textContent=s.distanceMm<0?'∞':s.distanceMm;distanceUnit.textContent=s.distanceMm<0?'':'mm';filtered.textContent=s.filteredDistanceMm<0?'—':s.filteredDistanceMm;trigger.textContent=s.triggerDistanceMm<0?'—':s.triggerDistanceMm;if(document.activeElement!==gateLimit)gateLimit.value=s.triggerDistanceMm>=0?s.triggerDistanceMm:'';gateLimit.disabled=!s.sensorSetupActive;$('gateLimitForm').querySelectorAll('button').forEach(b=>b.disabled=!s.sensorSetupActive);setupButton.textContent=s.sensorSetupActive?'Finish Sensor Setup':'Enable Sensor Setup';setupButton.classList.toggle('active',s.sensorSetupActive);setupButton.disabled=!s.calibrated&& !s.sensorSetupActive;state.textContent=s.sensorSetupActive?'SENSOR SETUP':s.state;time.textContent=f(s.timeMs);$('timerRider').textContent=s.riderName;$('best').textContent=s.absoluteBestMs?f(s.absoluteBestMs):'—';$('bestLabel').textContent='Absolute best · '+(s.absoluteBestMs?s.absoluteBestRider:'—');connection.textContent=s.sensorSetupActive?'Sensor Setup: attempts blocked.':s.calibrated?'Live · v'+s.version:'Calibrating gate…';renderHistory(h,r);renderRiders(r)}catch(e){connection.textContent=e.message||'Connection lost'}}$('riderForm').onsubmit=async e=>{e.preventDefault();const input=$('riderName');try{await api('/api/riders',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'name='+encodeURIComponent(input.value)});input.value='';refresh()}catch(err){connection.textContent=err.message}};$('gateLimitForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/gate/limit',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'limit='+encodeURIComponent(gateLimit.value)});refresh()}catch(err){connection.textContent=err.message}};$('useCurrentLimit').onclick=async()=>{try{await api('/api/gate/limit/current',{method:'POST'});refresh()}catch(err){connection.textContent=err.message}};setupButton.onclick=async()=>{if(!setupButton.classList.contains('active')&&!confirm('Enter Sensor Setup? Attempts will be blocked until you finish setup.'))return;try{await api('/api/sensor-setup',{method:'POST'});refresh()}catch(err){connection.textContent=err.message}};refresh();setInterval(refresh,500);
 </script><script>
 document.querySelector('main').insertAdjacentHTML('beforeend','<details class="card debug-card"><summary>Time validation</summary><p class="gate-help">Attempts shorter than this time stay in history but do not count toward best times. Set 0 to disable.</p><form class="gate-form" id="minimumTimeForm"><input id="minimumTimeSeconds" type="number" min="0" max="3600" step="0.1" inputmode="decimal" required><button>Save</button></form></details>');
-document.querySelector('main').insertAdjacentHTML('beforeend','<details class="card debug-card"><summary>Finish gate · <span id="gateMode">ONE GATE</span></summary><button class="setup-button" id="finishSetupButton" type="button">Enable Finish Setup</button><div class="grid"><div><div class="label">Distance</div><div class="small"><span id="finishDistance">—</span> mm</div></div><div><div class="label">Battery</div><div class="small"><span id="finishBattery">—</span></div></div><div><div class="label">Filtered</div><div class="small"><span id="finishFiltered">—</span> mm</div></div><div><div class="label">Gate limit</div><div class="small"><span id="finishTrigger">—</span> mm</div></div></div><p class="gate-help">Finish setup blocks attempts and requires READY.</p><form class="gate-form" id="finishGateLimitForm"><input id="finishGateLimit" type="number" min="0" max="3999" required><button>Set limit</button><button class="secondary" id="finishUseCurrent" type="button">Use current</button></form></details>');
-async function refreshFinish(){try{const s=await api('/api/status');$('gateMode').textContent=s.gateMode;$('finishDistance').textContent=s.finishGateConnected?(s.finishDistanceMm<0?'∞':s.finishDistanceMm):'—';$('finishFiltered').textContent=s.finishGateConnected?s.finishFilteredDistanceMm:'—';$('finishTrigger').textContent=s.finishGateConnected?s.finishTriggerDistanceMm:'—';$('finishBattery').textContent=s.finishGateConnected?(s.finishBatteryMv/1000).toFixed(2)+' V':'OFFLINE';const active=s.finishSensorSetupActive,b=$('finishSetupButton'),input=$('finishGateLimit'),minimum=$('minimumTimeSeconds');b.textContent=active?'Finish Setup':'Enable Finish Setup';b.classList.toggle('active',active);b.disabled=!s.finishGateConnected;input.disabled=!active;$('finishGateLimitForm').querySelectorAll('button').forEach(x=>x.disabled=!active);if(document.activeElement!==input&&s.finishTriggerDistanceMm>=0)input.value=s.finishTriggerDistanceMm;if(document.activeElement!==minimum)minimum.value=(s.minimumValidTimeMs/1000).toFixed(1);connection.textContent=s.sensorSetupActive||active?'Sensor Setup: attempts blocked.':s.calibrated?s.gateMode+' · Live · v'+s.version:'Calibrating gate…'}catch(e){}}
+document.querySelector('.timer-card').insertAdjacentHTML('beforeend','<button id="cancelAttemptButton" type="button" style="width:100%;margin-top:16px;border:1px solid #b94c59;background:#6d2730;color:#fff;border-radius:10px;padding:13px;font-size:16px;font-weight:700">Stop current attempt</button>');
+document.querySelector('main').insertAdjacentHTML('beforeend','<details class="card debug-card"><summary>Finish gate · <span id="gateMode">ONE GATE</span></summary><button class="setup-button" id="finishSetupButton" type="button">Enable Finish Setup</button><div class="grid"><div><div class="label">Distance</div><div class="small"><span id="finishDistance">—</span> mm</div></div><div><div class="label">Filtered</div><div class="small"><span id="finishFiltered">—</span> mm</div></div><div><div class="label">Gate limit</div><div class="small"><span id="finishTrigger">—</span> mm</div></div></div><p class="gate-help">Finish setup blocks attempts and requires READY.</p><form class="gate-form" id="finishGateLimitForm"><input id="finishGateLimit" type="number" min="0" max="3999" required><button>Set limit</button><button class="secondary" id="finishUseCurrent" type="button">Use current</button></form></details>');
+async function refreshFinish(){try{const s=await api('/api/status');$('gateMode').textContent=s.gateMode;$('finishDistance').textContent=s.finishGateConnected?(s.finishDistanceMm<0?'∞':s.finishDistanceMm):'—';$('finishFiltered').textContent=s.finishGateConnected?s.finishFilteredDistanceMm:'—';$('finishTrigger').textContent=s.finishGateConnected?s.finishTriggerDistanceMm:'—';const active=s.finishSensorSetupActive,b=$('finishSetupButton'),input=$('finishGateLimit'),minimum=$('minimumTimeSeconds');b.textContent=active?'Finish Setup':'Enable Finish Setup';b.classList.toggle('active',active);b.disabled=!s.finishGateConnected;input.disabled=!active;$('finishGateLimitForm').querySelectorAll('button').forEach(x=>x.disabled=!active);if(document.activeElement!==input&&s.finishTriggerDistanceMm>=0)input.value=s.finishTriggerDistanceMm;if(document.activeElement!==minimum)minimum.value=(s.minimumValidTimeMs/1000).toFixed(1);connection.textContent=s.sensorSetupActive||active?'Sensor Setup: attempts blocked.':s.calibrated?s.gateMode+' · Live · v'+s.version:'Calibrating gate…'}catch(e){}}
 $('minimumTimeForm').onsubmit=async e=>{e.preventDefault();const seconds=Number($('minimumTimeSeconds').value);try{await api('/api/settings/minimum-valid-time',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'minimumMs='+encodeURIComponent(Math.round(seconds*1000))});refresh();refreshFinish()}catch(x){connection.textContent=x.message}};
 $('finishSetupButton').onclick=async()=>{try{await api('/api/finish-gate/sensor-setup',{method:'POST'});setTimeout(refreshFinish,150)}catch(e){connection.textContent=e.message}};
 $('finishGateLimitForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/finish-gate/limit',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'limit='+encodeURIComponent($('finishGateLimit').value)});setTimeout(refreshFinish,150)}catch(x){connection.textContent=x.message}};
 $('finishUseCurrent').onclick=async()=>{try{await api('/api/finish-gate/limit/current',{method:'POST'});setTimeout(refreshFinish,150)}catch(e){connection.textContent=e.message}};
+$('cancelAttemptButton').onclick=async()=>{if(!confirm('Stop current attempt without saving it?'))return;try{await api('/api/attempt/cancel',{method:'POST'});refresh();refreshFinish()}catch(e){connection.textContent=e.message}};
 refreshFinish();setInterval(refreshFinish,500);
 </script></body></html>
 )HTML";
@@ -56,7 +59,35 @@ MotoWebServer *MotoWebServer::instance_ = nullptr;
 
 void MotoWebServer::receiveEspNow(const uint8_t *, const uint8_t *data, int length)
 {
-    if (instance_ == nullptr || length != static_cast<int>(sizeof(FinishGateProtocol::Frame)))
+    if (instance_ == nullptr)
+    {
+        return;
+    }
+
+    if (length == static_cast<int>(sizeof(GateControlProtocol::Command)))
+    {
+        GateControlProtocol::Command command;
+        memcpy(&command, data, sizeof(command));
+        if (command.magic != GateControlProtocol::kMagic ||
+            command.version != GateControlProtocol::kVersion ||
+            command.type != GateControlProtocol::CommandType::CancelAttempt)
+        {
+            return;
+        }
+
+        portENTER_CRITICAL(&instance_->finishGateMux_);
+        if (instance_->controlBootId_ != command.bootId ||
+            instance_->controlSequence_ != command.sequence)
+        {
+            instance_->controlBootId_ = command.bootId;
+            instance_->controlSequence_ = command.sequence;
+            instance_->attemptCancellationPending_ = true;
+        }
+        portEXIT_CRITICAL(&instance_->finishGateMux_);
+        return;
+    }
+
+    if (length != static_cast<int>(sizeof(FinishGateProtocol::Frame)))
     {
         return;
     }
@@ -80,7 +111,6 @@ void MotoWebServer::receiveEspNow(const uint8_t *, const uint8_t *data, int leng
         instance_->finishCrossingCount_ = frame.crossingCount;
         instance_->finishCrossingPending_ = true;
     }
-    instance_->finishBatteryMv_ = frame.batteryMv;
     instance_->finishFlags_ = frame.flags;
     instance_->finishDistanceMm_ = frame.distanceMm;
     instance_->finishFilteredDistanceMm_ = frame.filteredDistanceMm;
@@ -138,6 +168,7 @@ bool MotoWebServer::begin()
     server_.on("/api/attempts/invalidate", HTTP_POST, [this]() { handleInvalidateAttempt(); });
     server_.on("/api/attempts/revalidate", HTTP_POST, [this]() { handleRevalidateAttempt(); });
     server_.on("/api/attempts/assign", HTTP_POST, [this]() { handleAssignAttempt(); });
+    server_.on("/api/attempt/cancel", HTTP_POST, [this]() { handleCancelAttempt(); });
     server_.on("/api/settings/minimum-valid-time", HTTP_POST, [this]() { handleSetMinimumValidTime(); });
     server_.on("/api/riders", HTTP_GET, [this]() { handleRiders(); });
     server_.on("/api/riders", HTTP_POST, [this]() { handleAddRider(); });
@@ -207,6 +238,22 @@ void MotoWebServer::recordAttempt(uint32_t durationMs)
 
     // Each new attempt starts anonymous unless a rider is explicitly selected.
     riders_.select(0);
+}
+
+void MotoWebServer::cancelAttempt()
+{
+    attemptRiderLocked_ = false;
+    attemptRider_ = {};
+    riders_.select(0);
+}
+
+bool MotoWebServer::takeAttemptCancellation()
+{
+    portENTER_CRITICAL(&finishGateMux_);
+    const bool pending = attemptCancellationPending_;
+    attemptCancellationPending_ = false;
+    portEXIT_CRITICAL(&finishGateMux_);
+    return pending;
 }
 
 bool MotoWebServer::takeGateLimitUpdate(int16_t &limitMm)
@@ -345,12 +392,10 @@ void MotoWebServer::handleStatus()
 {
     const uint32_t timeMs = status_.timerState == TimerState::Result ? status_.resultMs : status_.elapsedMs;
     const bool finishConnected = isFinishGateConnected(millis());
-    uint16_t finishBatteryMv;
     int16_t finishDistanceMm;
     int16_t finishFilteredDistanceMm;
     int16_t finishTriggerDistanceMm;
     portENTER_CRITICAL(&finishGateMux_);
-    finishBatteryMv = finishBatteryMv_;
     finishDistanceMm = finishDistanceMm_;
     finishFilteredDistanceMm = finishFilteredDistanceMm_;
     finishTriggerDistanceMm = finishTriggerDistanceMm_;
@@ -359,7 +404,7 @@ void MotoWebServer::handleStatus()
     snprintf(
         response,
         sizeof(response),
-        "{\"version\":\"%s\",\"distanceMm\":%d,\"filteredDistanceMm\":%d,\"triggerDistanceMm\":%d,\"calibrated\":%s,\"sensorSetupActive\":%s,\"gateMode\":\"%s\",\"finishGateConnected\":%s,\"finishSensorSetupActive\":%s,\"finishBatteryMv\":%u,\"finishDistanceMm\":%d,\"finishFilteredDistanceMm\":%d,\"finishTriggerDistanceMm\":%d,\"minimumValidTimeMs\":%lu,\"state\":\"%s\",\"timeMs\":%lu,\"riderName\":\"%s\",\"sessionBestMs\":%lu,\"absoluteBestMs\":%lu,\"absoluteBestRider\":\"%s\"}",
+        "{\"version\":\"%s\",\"distanceMm\":%d,\"filteredDistanceMm\":%d,\"triggerDistanceMm\":%d,\"calibrated\":%s,\"sensorSetupActive\":%s,\"gateMode\":\"%s\",\"finishGateConnected\":%s,\"finishSensorSetupActive\":%s,\"finishDistanceMm\":%d,\"finishFilteredDistanceMm\":%d,\"finishTriggerDistanceMm\":%d,\"minimumValidTimeMs\":%lu,\"state\":\"%s\",\"timeMs\":%lu,\"riderName\":\"%s\",\"sessionBestMs\":%lu,\"absoluteBestMs\":%lu,\"absoluteBestRider\":\"%s\"}",
         Version::kString,
         status_.distanceMm,
         status_.filteredDistanceMm,
@@ -369,7 +414,6 @@ void MotoWebServer::handleStatus()
         finishConnected ? "TWO GATES" : "ONE GATE",
         finishConnected ? "true" : "false",
         isFinishGateSetupActive() ? "true" : "false",
-        finishBatteryMv,
         finishDistanceMm,
         finishFilteredDistanceMm,
         finishTriggerDistanceMm,
@@ -418,6 +462,21 @@ void MotoWebServer::handleInvalidateAttempt()
 void MotoWebServer::handleRevalidateAttempt()
 {
     handleSetAttemptValidity(true);
+}
+
+void MotoWebServer::handleCancelAttempt()
+{
+    if (status_.timerState != TimerState::RunningAwaitingClear &&
+        status_.timerState != TimerState::RunningArmed)
+    {
+        server_.send(409, "application/json", "{\"error\":\"There is no active attempt.\"}");
+        return;
+    }
+
+    portENTER_CRITICAL(&finishGateMux_);
+    attemptCancellationPending_ = true;
+    portEXIT_CRITICAL(&finishGateMux_);
+    server_.send(202, "application/json", "{\"ok\":true}");
 }
 
 void MotoWebServer::handleSetAttemptValidity(bool valid)
@@ -694,9 +753,10 @@ void MotoWebServer::handleUseCurrentGateLimit()
 
     // Use the newest sensor sample, not the moving average. During setup the
     // average may still contain previous far readings and lag behind the object.
-    pendingGateLimitMm_ = status_.distanceMm < 0
-                              ? Config::kTofNoTargetDistanceMm - 1
-                              : status_.distanceMm;
+    const int16_t normalizedReferenceMm =
+        status_.filteredDistanceMm < 0 ? Config::kTofNoTargetDistanceMm
+                                       : status_.filteredDistanceMm;
+    pendingGateLimitMm_ = normalizedReferenceMm - Config::kGateApproachMm;
     gateLimitUpdatePending_ = true;
     server_.send(202, "application/json", "{\"ok\":true}");
 }

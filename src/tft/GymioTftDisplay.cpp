@@ -6,6 +6,7 @@
 
 #include "config/Config.h"
 #include "protocol/DisplayStatusProtocol.h"
+#include "protocol/GateControlProtocol.h"
 #include "tft/TftHardwareConfig.h"
 
 namespace
@@ -15,6 +16,12 @@ constexpr uint16_t kBackgroundColor = TFT_BLACK;
 constexpr uint16_t kCardColor = 0x1082;
 constexpr uint16_t kMutedColor = 0xCE59;
 constexpr uint16_t kAccentColor = 0xDFA0;
+constexpr uint8_t kCancelButtonPin = 20;
+constexpr uint32_t kButtonDebounceMs = 40;
+constexpr uint32_t kCommandRepeatIntervalMs = 40;
+constexpr uint8_t kCommandRepeatCount = 5;
+constexpr uint8_t kBroadcastAddress[ESP_NOW_ETH_ALEN] = {
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 class St7796Display final : public lgfx::LGFX_Device
 {
@@ -76,6 +83,13 @@ portMUX_TYPE statusMux = portMUX_INITIALIZER_UNLOCKED;
 DisplayStatusProtocol::Frame pendingFrame;
 volatile bool framePending = false;
 bool espNowReady = false;
+bool cancelButtonRaw = HIGH;
+bool cancelButtonStable = HIGH;
+uint32_t cancelButtonChangedAtMs = 0;
+uint32_t controlBootId = 0;
+uint32_t controlSequence = 0;
+uint32_t nextCommandSendMs = 0;
+uint8_t commandRepeatsRemaining = 0;
 
 void setBacklightBrightness(uint8_t percent)
 {
@@ -108,6 +122,45 @@ void receiveEspNow(const uint8_t *, const uint8_t *data, int length)
     pendingFrame = frame;
     framePending = true;
     portEXIT_CRITICAL(&statusMux);
+}
+
+void serviceCancelButton(uint32_t nowMs)
+{
+    const bool raw = digitalRead(kCancelButtonPin);
+    if (raw != cancelButtonRaw)
+    {
+        cancelButtonRaw = raw;
+        cancelButtonChangedAtMs = nowMs;
+    }
+    if (raw != cancelButtonStable && nowMs - cancelButtonChangedAtMs >= kButtonDebounceMs)
+    {
+        cancelButtonStable = raw;
+        if (cancelButtonStable == LOW)
+        {
+            ++controlSequence;
+            commandRepeatsRemaining = kCommandRepeatCount;
+            nextCommandSendMs = 0;
+            Serial.println("Cancel button pressed.");
+        }
+    }
+
+    if (!espNowReady || commandRepeatsRemaining == 0 ||
+        (nextCommandSendMs != 0 && nowMs < nextCommandSendMs))
+    {
+        return;
+    }
+
+    GateControlProtocol::Command command;
+    command.bootId = controlBootId;
+    command.sequence = controlSequence;
+    const esp_err_t result = esp_now_send(
+        kBroadcastAddress, reinterpret_cast<const uint8_t *>(&command), sizeof(command));
+    if (result != ESP_OK)
+    {
+        Serial.printf("Cancel command send failed: %d\n", static_cast<int>(result));
+    }
+    --commandRepeatsRemaining;
+    nextCommandSendMs = nowMs + kCommandRepeatIntervalMs;
 }
 
 void drawCentered(const char *text, int32_t y, const lgfx::IFont *font)
@@ -298,6 +351,11 @@ void setup()
     delay(1000);
     Serial.println("GYMIO ESP32-C3 TFT DISPLAY");
     Serial.printf("Hardware profile: %s\n", TftHardwareConfig::kProfileName);
+    pinMode(kCancelButtonPin, INPUT_PULLUP);
+    cancelButtonRaw = digitalRead(kCancelButtonPin);
+    cancelButtonStable = cancelButtonRaw;
+    cancelButtonChangedAtMs = millis();
+    controlBootId = esp_random();
     ledcSetup(TftHardwareConfig::kBacklightPwmChannel,
               TftHardwareConfig::kBacklightPwmFrequencyHz,
               TftHardwareConfig::kBacklightPwmResolutionBits);
@@ -350,7 +408,13 @@ void setup()
     if (esp_wifi_set_channel(Config::kWifiAccessPointChannel, WIFI_SECOND_CHAN_NONE) == ESP_OK &&
         esp_now_init() == ESP_OK)
     {
-        espNowReady = esp_now_register_recv_cb(receiveEspNow) == ESP_OK;
+        esp_now_peer_info_t gatePeer{};
+        memcpy(gatePeer.peer_addr, kBroadcastAddress, ESP_NOW_ETH_ALEN);
+        gatePeer.channel = Config::kWifiAccessPointChannel;
+        gatePeer.ifidx = WIFI_IF_STA;
+        gatePeer.encrypt = false;
+        espNowReady = esp_now_add_peer(&gatePeer) == ESP_OK &&
+                      esp_now_register_recv_cb(receiveEspNow) == ESP_OK;
     }
     Serial.println(espNowReady ? "Display ESP-NOW receiver ready."
                                : "Display ESP-NOW receiver initialization failed.");
@@ -363,6 +427,7 @@ void setup()
 void loop()
 {
     const uint32_t now = millis();
+    serviceCancelButton(now);
     if (espNowReady)
     {
         receiveStatus(now);

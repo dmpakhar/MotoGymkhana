@@ -93,6 +93,21 @@ bool GateDetector::setTriggerDistanceMm(int16_t triggerDistanceMm)
     return true;
 }
 
+bool GateDetector::setTriggerFromReferenceDistanceMm(int16_t referenceDistanceMm)
+{
+    const int16_t normalizedReferenceMm =
+        referenceDistanceMm < 0 ? Config::kTofNoTargetDistanceMm : referenceDistanceMm;
+    if (normalizedReferenceMm <= Config::kGateApproachMm)
+    {
+        return false;
+    }
+
+    // Keep the trigger safely inside the measured clear/background distance.
+    // Saving the reference itself would let ordinary ToF jitter immediately
+    // oscillate across the threshold and create false crossings.
+    return setTriggerDistanceMm(normalizedReferenceMm - Config::kGateApproachMm);
+}
+
 bool GateDetector::isCalibrated() const
 {
     return calibrated_;

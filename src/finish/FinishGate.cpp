@@ -2,7 +2,6 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <Adafruit_VL53L1X.h>
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
@@ -11,41 +10,21 @@
 #include "gate/GateDetector.h"
 #include "protocol/DisplayStatusProtocol.h"
 #include "protocol/FinishGateProtocol.h"
+#include "tof/ToFSensor.h"
 
 namespace
 {
 constexpr uint8_t kOledSdaPin = 10;
 constexpr uint8_t kOledSclPin = 11;
 constexpr uint8_t kOledAddress = 0x3C;
-constexpr uint8_t kBatteryAdcPin = 1;
-constexpr uint8_t kTofSdaPin = 6;
-constexpr uint8_t kTofSclPin = 7;
-constexpr uint8_t kTofAddress = 0x29;
-constexpr uint16_t kTofTimingBudgetMs = 50;
-constexpr float kBatteryDividerRatio = 2.0F; // Two equal 100k resistors.
-constexpr uint16_t kBatteryMinimumMv = 3400;
-constexpr uint16_t kBatteryMaximumMv = 4200;
-constexpr uint8_t kBatterySegments = 4;
-constexpr uint8_t kAdcSamples = 16;
 constexpr uint32_t kDisplayRefreshIntervalMs = 100;
-constexpr uint32_t kBatteryReadIntervalMs = 2000;
 constexpr uint32_t kCrossingNoticeMs = 600;
 constexpr uint8_t kBroadcastAddress[ESP_NOW_ETH_ALEN] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 Adafruit_SSD1306 oled(128, 64, &Wire, -1);
 
-class FinishTofSensor final : public Adafruit_VL53L1X
-{
-public:
-    FinishTofSensor()
-        : Adafruit_VL53L1X()
-    {
-        gpio0 = -1;
-    }
-};
-
-FinishTofSensor tof;
+ToFSensor tof;
 bool tofReady = false;
 int16_t distanceMm = -1;
 GateDetector gateDetector;
@@ -61,12 +40,6 @@ FinishGateProtocol::Command pendingCommand;
 portMUX_TYPE commandMux = portMUX_INITIALIZER_UNLOCKED;
 bool sensorSetupActive = false;
 uint32_t appliedCommandId = 0;
-
-bool respondsAt(TwoWire &bus, uint8_t address)
-{
-    bus.beginTransmission(address);
-    return bus.endTransmission() == 0;
-}
 
 void receiveEspNow(const uint8_t *, const uint8_t *data, int length)
 {
@@ -125,9 +98,10 @@ void applyPendingCommand()
         }
         break;
     case FinishGateProtocol::CommandType::UseCurrentDistance:
-        if (sensorSetupActive && distanceMm > 0)
+        if (sensorSetupActive)
         {
-            gateDetector.setTriggerDistanceMm(distanceMm);
+            gateDetector.setTriggerFromReferenceDistanceMm(
+                gateDetector.filteredDistanceMm());
         }
         break;
     }
@@ -162,7 +136,7 @@ void beginEspNow()
     Serial.println("ESP-NOW finish link ready");
 }
 
-void sendHeartbeat(uint16_t batteryMv)
+void sendHeartbeat()
 {
     if (!espNowReady)
     {
@@ -178,7 +152,6 @@ void sendHeartbeat(uint16_t batteryMv)
     {
         frame.flags |= FinishGateProtocol::SetupActive;
     }
-    frame.batteryMv = batteryMv;
     frame.bootId = bootId;
     frame.sequence = ++frameSequence;
     frame.crossingCount = crossingCount;
@@ -189,78 +162,19 @@ void sendHeartbeat(uint16_t batteryMv)
     esp_now_send(kBroadcastAddress, reinterpret_cast<const uint8_t *>(&frame), sizeof(frame));
 }
 
-uint16_t readBatteryMillivolts()
-{
-    uint32_t sumMv = 0;
-    for (uint8_t sample = 0; sample < kAdcSamples; ++sample)
-    {
-        sumMv += analogReadMilliVolts(kBatteryAdcPin);
-        delay(2);
-    }
-    return static_cast<uint16_t>((sumMv / kAdcSamples) * kBatteryDividerRatio);
-}
-
-uint8_t batterySegments(uint16_t batteryMv)
-{
-    if (batteryMv <= kBatteryMinimumMv)
-    {
-        return 0;
-    }
-    if (batteryMv >= kBatteryMaximumMv)
-    {
-        return kBatterySegments;
-    }
-
-    const uint32_t rangeMv = kBatteryMaximumMv - kBatteryMinimumMv;
-    return static_cast<uint8_t>(
-        (static_cast<uint32_t>(batteryMv - kBatteryMinimumMv) * kBatterySegments) / rangeMv);
-}
-
-void drawBattery(uint16_t batteryMv)
-{
-    constexpr int16_t x = 93;
-    constexpr int16_t y = 1;
-    constexpr int16_t width = 31;
-    constexpr int16_t height = 13;
-    constexpr int16_t terminalWidth = 3;
-    constexpr int16_t segmentWidth = 5;
-    constexpr int16_t segmentGap = 1;
-
-    oled.drawRect(x, y, width, height, SSD1306_WHITE);
-    oled.fillRect(x + width, y + 4, terminalWidth, 5, SSD1306_WHITE);
-
-    const uint8_t filled = batterySegments(batteryMv);
-    for (uint8_t segment = 0; segment < kBatterySegments; ++segment)
-    {
-        const int16_t segmentX = x + 3 + segment * (segmentWidth + segmentGap);
-        oled.drawRect(segmentX, y + 3, segmentWidth, 7, SSD1306_WHITE);
-        if (segment < filled)
-        {
-            oled.fillRect(segmentX + 1, y + 4, segmentWidth - 2, 5, SSD1306_WHITE);
-        }
-    }
-}
-
-void render(uint16_t batteryMv, uint32_t nowMs)
+void render(uint32_t nowMs)
 {
     oled.clearDisplay();
     oled.setTextColor(SSD1306_WHITE);
     oled.setTextSize(1);
     oled.setCursor(0, 3);
     oled.print("GYMIO");
-    oled.setCursor(55, 3);
-    oled.print(batteryMv / 1000.0F, 2);
-    oled.print("V");
-    drawBattery(batteryMv);
+    oled.setCursor(84, 3);
+    oled.print("FINISH");
 
     oled.drawLine(0, 17, 127, 17, SSD1306_WHITE);
     oled.setCursor(3, 22);
-    if (batteryMv <= kBatteryMinimumMv)
-    {
-        oled.setTextSize(1);
-        oled.println("CHARGE BATTERY");
-    }
-    else if (!tofReady)
+    if (!tofReady)
     {
         oled.setTextSize(1);
         oled.println("VL53L1X ERROR");
@@ -320,11 +234,9 @@ void render(uint16_t batteryMv, uint32_t nowMs)
 void setup()
 {
     Serial.begin(115200);
-    delay(300);
+    delay(1000); // Match the main gate and allow the beam to clear before calibration.
     Serial.println("Gymio finish gate - ESP32-S3 Mini N4R2");
 
-    analogReadResolution(12);
-    analogSetPinAttenuation(kBatteryAdcPin, ADC_11db);
     Wire.begin(kOledSdaPin, kOledSclPin);
     if (!oled.begin(SSD1306_SWITCHCAPVCC, kOledAddress))
     {
@@ -335,24 +247,9 @@ void setup()
         }
     }
 
-    Wire1.begin(kTofSdaPin, kTofSclPin);
-    bool tofFound = respondsAt(Wire1, kTofAddress);
-    Serial.println(tofFound ? "VL53L1X found on SDA GPIO6 / SCL GPIO7"
-                            : "No I2C response on SDA GPIO6 / SCL GPIO7");
-    if (!tofFound)
-    {
-        Wire1.end();
-        Wire1.begin(kTofSclPin, kTofSdaPin);
-        tofFound = respondsAt(Wire1, kTofAddress);
-        Serial.println(tofFound ? "VL53L1X found on SDA GPIO7 / SCL GPIO6"
-                                : "No I2C response on SDA GPIO7 / SCL GPIO6");
-    }
-
-    tofReady = tofFound && tof.begin(kTofAddress, &Wire1);
+    tofReady = tof.begin();
     if (tofReady)
     {
-        tof.startRanging();
-        tof.setTimingBudget(kTofTimingBudgetMs);
         Serial.println("VL53L1X OK on SDA GPIO6 / SCL GPIO7");
     }
     else
@@ -367,15 +264,13 @@ void setup()
 void loop()
 {
     static uint32_t lastDisplayRefreshMs = 0;
-    static uint32_t lastBatteryReadMs = 0;
-    static uint16_t batteryMv = 0;
     const uint32_t nowMs = millis();
     applyPendingCommand();
 
-    if (tofReady && tof.dataReady())
+    int16_t measuredDistanceMm = -1;
+    if (tofReady && tof.readDistance(measuredDistanceMm))
     {
-        distanceMm = tof.distance();
-        tof.clearInterrupt();
+        distanceMm = measuredDistanceMm;
         const GateEvent gateEvent = gateDetector.update(distanceMm, nowMs);
         if (!sensorSetupActive && gateEvent == GateEvent::CrossingConfirmed)
         {
@@ -396,26 +291,16 @@ void loop()
         }
     }
 
-    if (batteryMv == 0 || nowMs - lastBatteryReadMs >= kBatteryReadIntervalMs)
-    {
-        lastBatteryReadMs = nowMs;
-        batteryMv = readBatteryMillivolts();
-        Serial.print("Battery: ");
-        Serial.print(batteryMv);
-        Serial.print(" mV, segments: ");
-        Serial.println(batterySegments(batteryMv));
-    }
-
     if (nowMs - lastDisplayRefreshMs >= kDisplayRefreshIntervalMs)
     {
         lastDisplayRefreshMs = nowMs;
-        render(batteryMv, nowMs);
+        render(nowMs);
     }
 
     if (nowMs - lastHeartbeatMs >= Config::kFinishGateHeartbeatMs)
     {
         lastHeartbeatMs = nowMs;
-        sendHeartbeat(batteryMv);
+        sendHeartbeat();
     }
     delay(2);
 }

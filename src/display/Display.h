@@ -16,6 +16,8 @@ public:
     void showDistance(int16_t distanceMm);
     void showRunning(uint32_t elapsedMs, bool awaitingClear);
     void showResult(uint32_t resultMs);
+    void showGateSetup(int16_t distanceMm);
+    void showGateConfigured(int16_t distanceMm);
     void showError(const char *message);
 
 private:

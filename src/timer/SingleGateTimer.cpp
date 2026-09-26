@@ -56,6 +56,20 @@ TimerState SingleGateTimer::state() const
     return state_;
 }
 
+bool SingleGateTimer::cancel()
+{
+    if (state_ != TimerState::RunningAwaitingClear && state_ != TimerState::RunningArmed)
+    {
+        return false;
+    }
+    state_ = TimerState::Ready;
+    startedAtMs_ = 0;
+    resultMs_ = 0;
+    resultShownAtMs_ = 0;
+    twoGateAttempt_ = false;
+    return true;
+}
+
 uint32_t SingleGateTimer::elapsedMs(uint32_t nowMs) const
 {
     return (state_ == TimerState::RunningAwaitingClear || state_ == TimerState::RunningArmed)

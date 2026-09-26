@@ -38,6 +38,7 @@ characters and contain only letters, digits, hyphens, or underscores.
 | `POST` | `/api/attempts/revalidate` | `number` | Makes an attempt eligible again. |
 | `POST` | `/api/settings/minimum-valid-time` | `minimumMs` | Sets the persisted minimum valid attempt duration; `0` disables automatic invalidation. |
 | `POST` | `/api/attempts/assign` | `number`, `riderId` | Changes the rider snapshot for a completed attempt. |
+| `POST` | `/api/attempt/cancel` | None | Stops the active attempt without adding it to history; returns 409 if no attempt is running. |
 
 Reassignment preserves duration, attempt number, and validity. Best times and
 the absolute-best rider are derived from current valid history, so they update

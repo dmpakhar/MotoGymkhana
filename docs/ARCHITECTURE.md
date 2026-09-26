@@ -13,10 +13,11 @@ created; the web server and sensor are serviced on every pass through `loop()`.
 | `Display` | Renders startup, calibration, distance, active timer, result, and errors. |
 | `RiderRegistry` | Stores up to 20 active riders and browser UUID associations. |
 | `MotoWebServer` | Runs the AP-facing HTTP UI/APIs, attempt ring buffer, sensor setup, and ESP-NOW display broadcast. |
-| `FinishGate` | Measures the remote finish, displays battery/sensor state, and exchanges reliable status/commands over ESP-NOW. |
+| `FinishGate` | Measures the remote finish, displays sensor/link state, and exchanges reliable status/commands over ESP-NOW. |
 | `GymioTftDisplay` | Receives ESP-NOW status and renders the large ST7796S UI on an ESP32-C3. |
 | `DisplayStatusProtocol` | Defines the versioned binary frame shared by the gate and TFT. |
 | `FinishGateProtocol` | Defines finish heartbeat/crossing state and acknowledged setup commands. |
+| `GateControlProtocol` | Defines deduplicated TFT-to-main-gate control commands. |
 
 ## Measurement and timer flow
 
@@ -56,7 +57,7 @@ gate is still occupied.
 
 The ESP32-S3 Mini N4R2 finish gate broadcasts an ESP-NOW heartbeat every
 250 ms on the Gymio access-point channel. The frame includes a boot identifier,
-sequence, persistent crossing counter, battery voltage, sensor state, and
+sequence, persistent crossing counter, sensor state, and
 distance. Repeating the crossing counter in every heartbeat prevents a single
 lost radio packet from losing a finish event.
 

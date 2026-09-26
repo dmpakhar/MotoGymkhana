@@ -27,6 +27,7 @@ public:
         uint32_t nowMs,
         bool twoGateMode = false,
         bool finishCrossingConfirmed = false);
+    bool cancel();
 
     TimerState state() const;
     uint32_t elapsedMs(uint32_t nowMs) const;

@@ -6,8 +6,8 @@
 
 bool ToFSensor::begin()
 {
-    // The supported N8R8 main gate keeps VL53L1X on a dedicated hardware I2C
-    // controller. Wire is already used by the OLED on GPIO10/GPIO11.
+    // Both gate profiles keep VL53L1X on a dedicated hardware I2C controller.
+    // Wire is already used by the OLED on GPIO10/GPIO11.
     TwoWire &tofWire = Wire1;
 
     tofWire.begin(Config::kTofSdaPin, Config::kTofSclPin);

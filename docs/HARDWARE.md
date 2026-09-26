@@ -1,5 +1,18 @@
 # Gymio hardware
 
+## Hardware variants
+
+The start and finish gates can use either power configuration:
+
+- **Classic** — no battery or additional power circuitry; powered from USB or
+  a suitable regulated board input.
+- **Battery Extended** — self-contained 1S 18650 supply with USB-C charging,
+  protection, boost/power control, and Schottky isolation.
+
+The power configuration does not change the firmware target or signal pinout.
+See [Power configurations](POWER.md) for verified wiring, limitations, and the
+planned (currently unassigned) battery ADC circuit.
+
 ## Main/start gate — ESP32-S3 N8R8
 
 PlatformIO environment: `esp32-s3-n8r8`.
@@ -22,6 +35,30 @@ The OLED and distance sensor use separate I2C controllers.
 OLED address is `0x3C`; VL53L1X address is `0x29`. The OLED shows the rider,
 timer state, distance/result, and `1GM` or `2GM` for the active gate mode.
 
+### Compact main gate — ESP32-S3 Mini N4R2
+
+The `main-gate-s3-mini` profile uses the same OLED and VL53L1X pins plus:
+
+| Component | ESP32-S3 Mini pin | Wiring / meaning |
+| --- | --- | --- |
+| Gate button | GPIO8 | Normally-open button to GND; internal pull-up |
+| Blue LED | GPIO9 | Attempt running |
+| Yellow LED | GPIO12 | Gate crossing, 600 ms pulse |
+| Green LED | GPIO13 | Timer ready |
+
+Connect each LED anode through its own 330–680 Ω resistor to the GPIO and its
+cathode to GND. Outputs are active-high. Never connect the button or GPIOs to
+5 V.
+
+A short press outside setup cancels an active attempt without saving it. Holding
+the button for 1.5 seconds while READY enters gate setup mode. The OLED then
+shows the live ToF distance; place the setup target at the required distance and
+short-press the button to save it. The OLED confirms `GATE SET` and the distance
+for 3 seconds. Attempts remain blocked throughout setup and until the saved
+setup target is removed from the beam. The saved threshold uses the rolling
+average reference minus a 150 mm safety margin; an `INF` reference becomes
+3850 mm. This dead band prevents static ToF jitter from causing crossings.
+
 ## Finish gate — ESP32-S3 Mini N4R2
 
 PlatformIO environment: `finish-gate-s3-mini`. The board has 4 MB flash and
@@ -37,13 +74,6 @@ PlatformIO environment: `finish-gate-s3-mini`. The board has 4 MB flash and
 | VL53L1X GND | GND | Ground |
 | VL53L1X SDA | GPIO6 | Sensor I2C data |
 | VL53L1X SCL | GPIO7 | Sensor I2C clock |
-| Battery divider output | GPIO1 | Battery ADC |
-
-Battery voltage is measured through a 100 kΩ/100 kΩ divider: battery positive
-to 100 kΩ, divider midpoint to GPIO1, and another 100 kΩ from GPIO1 to ground.
-All grounds must be common. The firmware treats 3.4 V as empty/non-operational
-and 4.2 V as full for the four-section battery indicator. The voltage reading
-is diagnostic, not a precision fuel gauge.
 
 ## Large display — ESP32-C3-MINI-1 and ST7796S
 
@@ -62,6 +92,10 @@ PlatformIO environment: `tft-c3-mini-1`. The generic TFT is 3.5 inches,
 | RST | GPIO8 | Display reset |
 | BL | GPIO0 | Active-high 3.3V backlight control/PWM |
 | SDA-OF | NC | No MISO/readback |
+
+Connect the optional attempt-cancel button between `GPIO20` and `GND`. Firmware
+uses `INPUT_PULLUP`, so no external pull-up is required. The button is
+active-low; never connect GPIO20 to 5 V or directly to another GPIO.
 
 Power topology:
 

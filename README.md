@@ -6,6 +6,10 @@ local OLED, and hosts operator and rider pages over its own Wi-Fi network.
 Optional ESP32-S3 finish gates enable two-gate timing, while an ESP32-C3/ST7796S
 large display receives live results over ESP-NOW.
 
+Gate hardware is available as `Classic` (externally powered, without a battery
+subsystem) or `Battery Extended` (verified 1S 18650, USB-C charger/protection,
+boost controller, and isolated 5 V supply). Both use the same gate firmware.
+
 Current prerelease: **0.2.0**
 
 ## Features
@@ -22,7 +26,8 @@ Current prerelease: **0.2.0**
 - Persisted minimum-valid-time filtering for accidental short attempts.
 - ESP-NOW gate-to-TFT link that does not consume a phone Wi-Fi client slot.
 - Sunlight-oriented 480x320 TFT UI with GPIO0 PWM backlight control.
-- Three explicit targets: N8R8 main gate, N4R2 finish gate, and C3-MINI-1 TFT.
+- Four explicit targets: N8R8 main gate, compact N4R2 main gate, N4R2 finish
+  gate, and C3-MINI-1 TFT.
 
 ## Quick start
 
@@ -63,6 +68,7 @@ All ESP-NOW devices must use the channel configured by
 ## Documentation
 
 - [Hardware and wiring](docs/HARDWARE.md)
+- [Classic and Battery Extended power](docs/POWER.md)
 - [User guide and web pages](docs/USER_GUIDE.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Development, diagnostics, and releases](docs/DEVELOPMENT.md)
