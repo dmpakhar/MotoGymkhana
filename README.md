@@ -10,7 +10,7 @@ Gate hardware is available as `Classic` (externally powered, without a battery
 subsystem) or `Battery Extended` (verified 1S 18650, USB-C charger/protection,
 boost controller, and isolated 5 V supply). Both use the same gate firmware.
 
-Current prerelease: **0.2.0**
+Current prerelease: **0.3.0**
 
 ## Features
 

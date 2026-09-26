@@ -4,6 +4,8 @@ All notable changes are documented here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+## 0.3.0 - 2026-09-26
+
 ### Documentation
 
 - Updated build, wiring, UI, API, ESP-NOW, and troubleshooting documentation for
