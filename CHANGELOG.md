@@ -13,6 +13,8 @@ All notable changes are documented here. Versions follow Semantic Versioning.
   limitations, and the unassigned planned battery-sense circuit.
 - Reworked the user guide into an event-oriented operating manual covering
   riders, operators, gate modes, setup controls, displays, and recovery steps.
+- Documented Battery Extended power controls: single-press start, double-press
+  shutdown, and the master ground disconnect used for transport and storage.
 
 ### Added
 

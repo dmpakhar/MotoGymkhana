@@ -22,7 +22,20 @@ limits printed on the exact controller board when using an external supply.
 - a TP4056-based USB-C 1S charger/protection module (ZX-056 style);
 - the existing boost/power-controller module, which produces approximately
   5 V and provides device power on/off control;
+- a master ground switch for physical isolation of the battery-powered device
+  circuit;
 - a 1N5819 Schottky isolation diode before the ESP32 5 V input.
+
+The boost/power-controller button uses the following verified interaction:
+
+- one press — power on;
+- two presses — power off.
+
+The master ground switch must be on before the electronic power button can
+start the controller. Use the double press for normal shutdown; use the ground
+switch for complete isolation during transport or storage. Whether charging is
+available with the ground switch off depends on its exact position in the
+physical harness and must be checked on the assembled unit.
 
 ```text
 USB-C ----> TP4056 charger/protection
@@ -122,4 +135,3 @@ Optional: 100 nF ceramic capacitor from the ADC node to GND.
 The 1:2 divider gives approximately 2.10 V at the ADC for a 4.20 V cell.
 Firmware must calibrate the ADC under real load and use a non-linear Li-ion
 voltage curve; this circuit is only an approximate state-of-charge indicator.
-

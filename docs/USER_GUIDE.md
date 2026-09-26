@@ -42,10 +42,28 @@ has no 18650, charger, or battery indicator.
 
 ### Battery Extended
 
-Turn on the installed boost/power controller. Charge through the TP4056 USB-C
-connector. The current prototype can operate while connected to USB, but the
-TP4056 is not a true load-sharing charger; an active system can affect charge
-termination.
+Battery Extended has two power controls:
+
+- a **master ground switch**, which physically disconnects the battery-powered
+  device circuit;
+- a momentary **power button** connected to the boost/power controller.
+
+To start the gate:
+
+1. Turn the master ground switch on.
+2. Press the power button once.
+3. Wait for the OLED and sensor calibration.
+
+To stop the gate normally, press the power button twice. For transport or
+storage, switch the master ground disconnect off after shutdown. If the unit
+does not react to the power button, first check that the master ground switch is
+on.
+
+Charge through the TP4056 USB-C connector. The current prototype can operate
+while connected to USB, but the TP4056 is not a true load-sharing charger; an
+active system can affect charge termination. The effect of the master ground
+switch on charging depends on the physical wiring, so verify the charger LED
+rather than assuming that charging continues with the switch off.
 
 If Battery Extended does not start, charge the cell and inspect the power chain.
 Never connect an 18650 directly to an ESP32 pin. Full power wiring and USB-C
