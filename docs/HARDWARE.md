@@ -74,6 +74,17 @@ PlatformIO environment: `finish-gate-s3-mini`. The board has 4 MB flash and
 | VL53L1X GND | GND | Ground |
 | VL53L1X SDA | GPIO6 | Sensor I2C data |
 | VL53L1X SCL | GPIO7 | Sensor I2C clock |
+| Gate button | GPIO8 | Normally-open button to GND; internal pull-up |
+| Blue LED | GPIO9 | Attempt running |
+| Yellow LED | GPIO12 | Finish crossing, 600 ms pulse |
+| Green LED | GPIO13 | Connected, calibrated, and timer ready |
+
+Wire the button and LEDs exactly as on the compact main gate: button to GND,
+and each active-high LED through its own 330–680 Ω resistor to GND. A short
+press sends the same attempt-cancel command as the start gate. Hold for 1.5
+seconds while the connected main gate is READY to enter finish-gate setup, then
+short-press to save the filtered reference minus the 150 mm safety margin.
+Crossings remain blocked until the setup target is removed.
 
 ## Large display — ESP32-C3-MINI-1 and ST7796S
 

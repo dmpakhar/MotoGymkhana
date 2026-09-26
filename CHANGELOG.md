@@ -18,6 +18,8 @@ All notable changes are documented here. Versions follow Semantic Versioning.
 
 ### Added
 
+- Added the same GPIO8 setup/cancel button and GPIO9/12/13 status LEDs to the
+  finish-gate S3 Mini profile, including local normalized setup and wait-clear.
 - Compact `main-gate-s3-mini` profile with a GPIO8 attempt-cancel button and
   blue/yellow/green state LEDs on GPIO9/12/13.
 - Two-step physical gate setup on the compact main gate: hold to enter setup,
@@ -34,6 +36,8 @@ All notable changes are documented here. Versions follow Semantic Versioning.
 
 ### Changed
 
+- Removed the compact trigger-threshold diagnostic from the lower-right corner
+  of the finish-gate OLED for a cleaner user-facing display.
 - Physical and web `Use current` setup now derive the threshold from a filtered
   reference with a 150 mm safety margin. An `INF` reference normalizes to
   3850 mm instead of being rejected or saved at the noisy boundary.

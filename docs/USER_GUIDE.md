@@ -167,9 +167,10 @@ and reevaluates all attempts still present in the 20-entry history.
 During a running attempt, press **Stop current attempt** and confirm. The timer
 returns to its idle flow without saving a history entry.
 
-On a compact S3 Mini main gate, a short press of the physical gate button does
-the same. The optional button on the large TFT also sends the same cancellation
-command. These controls have no effect when an attempt is not running.
+On compact S3 Mini start and finish gates, a short press of the physical gate
+button does the same. The optional button on the large TFT also sends the same
+cancellation command. These controls have no effect when an attempt is not
+running.
 
 ## Timer operation
 
@@ -236,6 +237,11 @@ mode, a short press cancels a running attempt instead.
 3. Open **Finish gate** and press **Enable Finish Setup**.
 4. Enter the limit or use the current finish-sensor reading.
 5. Press **Finish Setup**, remove the target, and confirm `2GM`.
+
+The finish gate can also be configured locally with its GPIO8 button. While the
+main gate is connected and READY, hold for 1.5 seconds to enter `GATE SETUP`,
+place the target, and short-press to save. Remove the target before use. Its
+blue/yellow/green LEDs mean running, crossing, and ready, respectively.
 
 ## Status LEDs on the compact main gate
 
