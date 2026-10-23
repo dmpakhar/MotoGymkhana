@@ -297,8 +297,9 @@ this one-button path is available for later releases.
 
 - Main-gate updates require no local firmware file: use **Check for updates**
   and then **Install update**.
-- For the finish gate, press **Prepare finish gate**, wait about three seconds,
-  and open `192.168.4.2/update`.
+- For the finish gate, use **Check for updates** and then **Install latest on
+  finish gate**. The main gate prepares the finish gate, downloads the matching
+  image, streams it over the local Gymio network, and the finish gate restarts.
 - For the TFT, press **Prepare TFT display**, wait about three seconds, and open
   `192.168.4.3/update`.
 
