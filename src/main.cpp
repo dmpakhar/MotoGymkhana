@@ -345,7 +345,7 @@ void loop()
         }
         timerEvent = timer.update(
             localCrossing,
-            gateEvent == GateEvent::GateCleared,
+            !gateDetector.isOccupied(),
             nowMs,
             twoGateMode,
             finishCrossing);
@@ -385,7 +385,13 @@ void loop()
 #else
         false;
 #endif
-    if (showGateConfiguredMessage)
+    if (webServer.isUpdateModeActive(nowMs))
+    {
+        const String updateIp = webServer.stationIpAddress();
+        display.showUpdateMode(
+            webServer.stationSsid(), updateIp.c_str(), webServer.updateModeStatus());
+    }
+    else if (showGateConfiguredMessage)
     {
 #ifdef GYMIO_MAIN_S3_MINI
         display.showGateConfigured(configuredGateDistanceMm);

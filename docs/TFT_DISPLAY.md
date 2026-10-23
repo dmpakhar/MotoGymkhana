@@ -19,10 +19,12 @@ only changed timer glyphs to minimize TFT flashing.
 
 ## ESP-NOW
 
-The main gate broadcasts `DisplayStatusProtocol::Frame` every 100 ms. The TFT
-listens in station mode without associating to Wi-Fi, so it consumes neither a
-SoftAP client slot nor a DHCP address. No MAC pairing is required. Both nodes
-must use `Config::kWifiAccessPointChannel`, currently channel 1.
+The main gate broadcasts `DisplayStatusProtocol::Frame` every 100 ms. During
+normal operation the TFT listens in station mode without associating to Wi-Fi,
+so it consumes neither a SoftAP client slot nor a DHCP address. It joins the
+Gymio AP at static address `192.168.4.3` only during a requested three-minute
+OTA maintenance window. No MAC pairing is required. Both nodes must use
+`Config::kWifiAccessPointChannel`, currently channel 1.
 
 Frames contain a protocol marker/version, sequence number, timer milliseconds,
 timer state, gate count, rider, absolute best time, and absolute-best rider. Broadcasts are
@@ -50,6 +52,10 @@ pio run -e tft-c3-mini-1
 pio run -e tft-c3-mini-1 -t upload --upload-port TFT_PORT
 pio device monitor --port TFT_PORT --baud 115200
 ```
+
+After an OTA-capable build has been installed once over USB, later TFT images
+can be uploaded from the main gate's `/update` page. The screen displays
+`OTA MODE` while its authenticated updater is active.
 
 See [Hardware](HARDWARE.md) for wiring and [Troubleshooting](TROUBLESHOOTING.md)
 for connection and display checks.

@@ -40,7 +40,7 @@ GateEvent GateDetector::update(int16_t distanceMm, uint32_t nowMs)
                                            : normalizedDistanceMm;
     const bool objectPresent = decisionDistanceMm <= triggerDistanceMm_;
 
-    // A fast motorcycle may cross the sensor beam within one 50 ms ranging
+    // A fast motorcycle may cross the sensor beam within one 20 ms ranging
     // frame. The VL53L1X driver has already rejected invalid/range-error
     // measurements before they reach this detector, so accept one sample when
     // it is comfortably inside the gate threshold. Keep normal confirmation
@@ -111,6 +111,11 @@ bool GateDetector::setTriggerFromReferenceDistanceMm(int16_t referenceDistanceMm
 bool GateDetector::isCalibrated() const
 {
     return calibrated_;
+}
+
+bool GateDetector::isOccupied() const
+{
+    return gateOccupied_;
 }
 
 uint8_t GateDetector::calibrationSampleCount() const

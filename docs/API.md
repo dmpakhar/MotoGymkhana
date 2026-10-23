@@ -1,8 +1,9 @@
 # HTTP API
 
 The API is served by the gate at `http://gymio.local` and
-`http://192.168.4.1`. It is local, unauthenticated, and intended for the bundled
-web pages. Mutating requests use URL-encoded form fields.
+`http://192.168.4.1`. Normal timer/rider endpoints are local and unauthenticated;
+firmware-update endpoints require HTTP Basic authentication. Mutating timer
+requests use URL-encoded form fields.
 
 ## Status and history
 
@@ -63,3 +64,22 @@ invalidation remains independent. Accepted range is 0–3,600,000 ms.
 Sensor Setup blocks attempts until it is disabled. Successful setters return a
 small JSON confirmation. Client errors use JSON with an `error` string and an
 appropriate 4xx status.
+
+## Firmware maintenance
+
+| Method | Path | Fields | Description |
+| --- | --- | --- | --- |
+| `GET` | `/configuration` | Optional Basic auth | Deep configuration page hosted by the main gate. |
+| `GET` | `/api/configuration` | Optional Basic auth | Saved SSID, connection state, IP, channel, version, and security state. Never returns the password. |
+| `POST` | `/api/configuration/wifi` | `ssid`, optional `password` | Persists upstream Wi-Fi and starts a background connection. Empty password preserves the stored password. |
+| `DELETE` | `/api/configuration/wifi` | None | Disconnects and removes upstream Wi-Fi credentials. |
+| `POST` | `/api/configuration/security` | `enabled=0|1` | Persists administrator-authentication state. |
+| `GET` | `/update` | Optional Basic auth | Firmware maintenance page on the main gate. |
+| `POST` | `/update/main` | Multipart `firmware` | Streams a matching main-gate image to the inactive OTA slot. |
+| `POST` | `/api/ota/prepare` | Query `target=finish` or `target=tft` | Requests three-minute maintenance mode over ESP-NOW; requires `READY`. |
+
+The remote maintenance servers expose `GET/POST /update` at `192.168.4.2`
+(finish) or `192.168.4.3` (TFT). Remote endpoint uploads use the credentials in
+`Config.h`. Main-gate Configuration and OTA require them only when the switch
+is enabled. An uploaded image must contain the target marker expected by the
+receiving build.

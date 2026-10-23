@@ -4,8 +4,12 @@
 #include <Preferences.h>
 #include <WebServer.h>
 
+#include "config/Config.h"
 #include "rider/RiderRegistry.h"
 #include "timer/SingleGateTimer.h"
+#include "protocol/OtaControlProtocol.h"
+#include "config/FirmwareIdentity.h"
+#include "ota/FirmwareTargetValidator.h"
 
 class MotoWebServer
 {
@@ -23,6 +27,10 @@ public:
     bool isFinishGateSetupActive();
     bool takeFinishCrossing();
     const char *displayRiderName() const;
+    bool isUpdateModeActive(uint32_t nowMs) const;
+    const char *stationSsid() const;
+    String stationIpAddress() const;
+    const char *updateModeStatus() const;
     void updateStatus(
         int16_t distanceMm,
         int16_t filteredDistanceMm,
@@ -64,9 +72,25 @@ private:
     int16_t pendingGateLimitMm_ = -1;
     bool sensorSetupActive_ = false;
     bool mdnsStarted_ = false;
+    bool stationWasConnected_ = false;
+    String stationSsid_;
+    String stationPassword_;
+    bool adminAuthenticationEnabled_ = Config::kAdminAuthenticationEnabledByDefault;
+    uint32_t stationConnectStartedMs_ = 0;
+    uint32_t stationLastAttemptMs_ = 0;
+    uint32_t stationConnectScheduledAtMs_ = 0;
     uint32_t lastDisplayBroadcastMs_ = 0;
     uint32_t displaySequence_ = 0;
     bool espNowReady_ = false;
+    OtaControlProtocol::Target otaTarget_ = OtaControlProtocol::Target::FinishGate;
+    uint32_t otaCommandId_ = 0;
+    uint32_t otaCommandUntilMs_ = 0;
+    bool otaUploadStarted_ = false;
+    bool otaUploadSucceeded_ = false;
+    uint32_t otaRestartAtMs_ = 0;
+    uint32_t updateModeUntilMs_ = 0;
+    String updateModeStatus_ = "READY FOR UPDATE";
+    FirmwareTargetValidator otaTargetValidator_{FirmwareIdentity::kMarker};
     portMUX_TYPE finishGateMux_ = portMUX_INITIALIZER_UNLOCKED;
     volatile uint32_t lastFinishPacketMs_ = 0;
     volatile uint32_t finishBootId_ = 0;
@@ -89,6 +113,16 @@ private:
 
     void handleRoot();
     void handleRiderRoot();
+    void handleOtaPage();
+    void handleConfigurationPage();
+    void handleConfigurationStatus();
+    void handleSaveWifiConfiguration();
+    void handleDisconnectWifi();
+    void handleSaveSecurityConfiguration();
+    void handleCheckForUpdates();
+    void handlePrepareRemoteOta();
+    void handleMainOtaComplete();
+    void handleMainOtaUpload();
     void handleStatus();
     void handleHistory();
     void handleInvalidateAttempt();
@@ -111,6 +145,11 @@ private:
     void handleUseCurrentFinishGateLimit();
     void sendFinishCommand(uint8_t type, int16_t value);
     void broadcastDisplayStatus();
+    bool authenticateOta();
+    bool authenticateAdministration();
+    void startStationConnection();
+    void serviceStationConnection();
+    void restartMdns();
     const Rider &riderForStatus() const;
     bool isAttemptValid(const Attempt &attempt) const;
     bool isAttemptAutomaticallyInvalid(const Attempt &attempt) const;

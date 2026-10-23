@@ -2,7 +2,31 @@
 
 All notable changes are documented here. Versions follow Semantic Versioning.
 
-## Unreleased
+## 0.4.0 - 2026-10-23
+
+### Changed
+
+- In one-gate mode, the finish cannot arm during the first 1.5 seconds after
+  the start. This prevents the gap between a motorcycle's wheels from being
+  mistaken for a fully cleared gate and the rear wheel for the finish.
+- Main-gate Configuration and OTA authentication can be enabled explicitly;
+  new prototype installations start without a login requirement.
+
+### Added
+
+- Main-gate `AP+STA` networking with persistent upstream Wi-Fi settings,
+  automatic reconnect, and an unauthenticated-by-default Configuration page.
+- GitHub Actions CI/CD for the three deployed firmware targets and automatic
+  binary publication when a `v*` release tag is pushed.
+- Main-gate update mode with OLED SSID/IP/status indication and a GitHub
+  Release check from the firmware update page.
+- Automatic ESP-NOW channel discovery on finish-gate and TFT nodes when the
+  upstream Wi-Fi moves the shared main-gate radio channel.
+- Authenticated browser OTA for both main-gate profiles, the finish gate, and
+  the TFT display. Remote endpoints enter a three-minute Wi-Fi maintenance
+  mode through ESP-NOW and use reserved addresses.
+- Embedded firmware-target markers prevent an OTA image built for one hardware
+  profile from being activated on another profile.
 
 ## 0.3.0 - 2026-09-26
 
@@ -38,14 +62,19 @@ All notable changes are documented here. Versions follow Semantic Versioning.
 
 ### Changed
 
+- Finish crossings are now transmitted immediately over ESP-NOW, with the
+  periodic retry heartbeat reduced from 250 to 100 ms.
+- Finish-gate physical setup no longer requires a connected main gate; it is
+  available as soon as the local ToF sensor is calibrated.
 - Removed the compact trigger-threshold diagnostic from the lower-right corner
   of the finish-gate OLED for a cleaner user-facing display.
 - Physical and web `Use current` setup now derive the threshold from a filtered
   reference with a 150 mm safety margin. An `INF` reference normalizes to
   3850 mm instead of being rejected or saved at the noisy boundary.
 
-- Gate entry now uses raw distance, immediately accepts a valid sample at least
-  300 mm inside the threshold, and retains 50 ms confirmation near the edge.
+- Gate entry now samples at a 20 ms ToF timing budget, immediately accepts a
+  valid sample at least 100 mm inside the threshold, and uses 20 ms confirmation
+  near the edge.
   Release remains filtered with 250 ms confirmation for stability.
 - The large TFT shows a high-visibility `READY TO GO` message in READY state.
 - Removed battery measurement and indication from the finish-gate firmware,

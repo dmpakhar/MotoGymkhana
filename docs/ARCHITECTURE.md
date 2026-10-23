@@ -47,19 +47,24 @@ The gate detector normalizes a no-target reading to 4000 mm. It calibrates from
 20 clear-gate samples, maintains a five-sample moving average, and initially
 sets the trigger 150 mm closer than the calibrated baseline. Entry detection
 uses raw distance, preventing a fast crossing from being diluted by the moving
-average. A valid reading at least 300 mm inside the configured threshold is
-accepted in one sensor frame; marginal readings retain a 50 ms confirmation.
+average. The sensor uses a 20 ms timing budget (about 50 samples per second).
+A valid reading at least 100 mm inside the configured threshold is accepted in
+one sensor frame; marginal readings require 20 ms confirmation.
 Release detection uses the filtered distance and must remain stable for 250 ms,
 preventing a single far or no-target sample from arming the finish while the
-gate is still occupied.
+gate is still occupied. In one-gate mode, the timer additionally waits at least
+1500 ms after the start before accepting the stable clear state. This keeps the
+clear space between the motorcycle's wheels from arming the rear wheel as a
+finish. Two-gate mode does not apply this start holdoff.
 
 ## Optional finish gate
 
 The ESP32-S3 Mini N4R2 finish gate broadcasts an ESP-NOW heartbeat every
-250 ms on the Gymio access-point channel. The frame includes a boot identifier,
-sequence, persistent crossing counter, sensor state, and
-distance. Repeating the crossing counter in every heartbeat prevents a single
-lost radio packet from losing a finish event.
+100 ms on the Gymio access-point channel. A crossing also triggers an immediate
+frame instead of waiting for the next heartbeat. The frame includes a boot
+identifier, sequence, persistent crossing counter, sensor state, and distance.
+Repeating the crossing counter in every heartbeat prevents a lost immediate
+packet from losing a finish event; the retry delay is at most about 100 ms.
 
 The main gate enters two-gate mode while finish heartbeats are no more than
 1500 ms old. The mode is latched when an attempt starts: a two-gate attempt can
@@ -91,16 +96,46 @@ the threshold cannot restore an attempt that the operator manually invalidated.
 
 ## Radio architecture
 
-The ESP32-S3 runs a WPA2 SoftAP named `Gymio` on the fixed channel in
-`Config::kWifiAccessPointChannel` (currently channel 1). Phones join this AP for
-HTTP access. The gate also broadcasts a compact status frame every 100 ms using
-ESP-NOW on the AP interface.
+The main ESP32-S3 runs in `WIFI_AP_STA` mode. Its WPA2 SoftAP named `Gymio`
+remains available to phones and remote modules while its station interface can
+join an internet-connected home Wi-Fi or phone hotspot. When STA connects, the
+single ESP32 radio makes the SoftAP and ESP-NOW use the upstream access point's
+channel. Finish and TFT modules automatically scan channels after losing main
+gate frames, then remain on the discovered channel.
 
-The TFT enables station mode only to use the radio, fixes its channel to the
-same configured value, and does not associate with the AP or obtain an IP
-address. Frames use the broadcast MAC address, so the gate does not need the
-TFT's MAC and multiple displays can listen. The link is one-way and
-unencrypted. See [TFT display and ESP-NOW](TFT_DISPLAY.md).
+Home-network credentials and the optional administrator-authentication switch
+are stored in the main gate's NVS. Loss of upstream Wi-Fi does not stop the
+local AP, timer, web UI, or OTA upload path.
+
+## Firmware CI/CD
+
+`.github/workflows/firmware.yml` builds all supported environments on every
+main-branch push and pull request. A `v*` tag creates a GitHub Release containing
+target-named binaries. Every binary retains its embedded `GYMIO_TARGET` marker,
+which the receiving device validates before committing an OTA update.
+
+## OTA maintenance path
+
+The main gate exposes an authenticated `/update` page on its SoftAP. Main-gate
+images stream directly into the inactive OTA application partition. For a
+remote update, the main gate repeats a target-specific ESP-NOW maintenance
+command for five seconds. The selected endpoint temporarily associates with
+the same Gymio AP and starts an authenticated updater at a reserved address:
+finish gate `192.168.4.2`, TFT `192.168.4.3`.
+
+Remote maintenance mode stops after three minutes when no upload is active.
+Normal finish/TFT operation remains ESP-NOW-only outside that window. Every
+production build embeds `GYMIO_TARGET=<environment>`; the receiving updater
+scans the upload and calls `Update.end()` only when that target matches. OTA
+writes the inactive `ota_0`/`ota_1` slot, preserving the running image when an
+upload fails or is rejected.
+
+The TFT normally enables station mode only to use the radio, fixes its channel
+to the same configured value, and does not associate with the AP or obtain an
+IP address. It associates temporarily only during requested OTA maintenance.
+Frames use the broadcast MAC address, so the gate does not need the TFT's MAC
+and multiple displays can listen. Status traffic is one-way and unencrypted.
+See [TFT display and ESP-NOW](TFT_DISPLAY.md).
 
 ## HTTP surface
 
@@ -108,6 +143,11 @@ unencrypted. See [TFT display and ESP-NOW](TFT_DISPLAY.md).
 | --- | --- | --- |
 | GET | `/`, `/main` | Main/operator dashboard. |
 | GET | `/rider` | Personal rider page. |
+| GET | `/configuration` | Main-gate network, security, and firmware configuration. |
+| GET/POST/DELETE | `/api/configuration/*` | Read or change persisted main-gate settings. |
+| GET | `/update` | Firmware maintenance page; authentication is optional. |
+| POST | `/update/main` | Authenticated main-gate OTA upload. |
+| POST | `/api/ota/prepare` | Start finish/TFT OTA maintenance mode. |
 | GET | `/api/status` | Timer, sensor, rider, and firmware-version status. |
 | GET | `/api/history` | Newest-first attempt history. |
 | GET/POST/DELETE | `/api/riders` | List, create, or remove riders. |
@@ -125,5 +165,6 @@ unencrypted. See [TFT display and ESP-NOW](TFT_DISPLAY.md).
 | POST | `/api/finish-gate/limit` | Set the remote finish threshold. |
 | POST | `/api/finish-gate/limit/current` | Use the remote finish reading as threshold. |
 
-The HTTP server is intentionally local and unauthenticated in version 0.2.0.
+Operator controls remain local and unauthenticated. Administration and OTA
+authentication is disabled by default and can be enabled from Configuration.
 Request fields and response shapes are documented in [HTTP API](API.md).

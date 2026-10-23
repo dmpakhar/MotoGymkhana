@@ -19,6 +19,7 @@ public:
     bool setTriggerFromReferenceDistanceMm(int16_t referenceDistanceMm);
 
     bool isCalibrated() const;
+    bool isOccupied() const;
     uint8_t calibrationSampleCount() const;
     int16_t filteredDistanceMm() const;
     int16_t triggerDistanceMm() const;

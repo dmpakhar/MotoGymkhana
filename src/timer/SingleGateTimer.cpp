@@ -22,7 +22,12 @@ TimerEvent SingleGateTimer::update(
         break;
 
     case TimerState::RunningAwaitingClear:
-        if (gateCleared)
+        // A motorcycle can briefly expose the background between its front
+        // and rear wheels. In single-gate mode, do not arm that rear wheel as
+        // a finish crossing. The caller supplies the current stable clear
+        // state, so an early clear is reconsidered after the holdoff expires.
+        if (gateCleared &&
+            (twoGateAttempt_ || nowMs - startedAtMs_ >= Config::kSingleGateStartClearHoldMs))
         {
             state_ = TimerState::RunningArmed;
         }

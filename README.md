@@ -25,6 +25,8 @@ Current prerelease: **0.3.0**
 - Absolute session best, attempt reassignment, invalidation, and revalidation.
 - Persisted minimum-valid-time filtering for accidental short attempts.
 - ESP-NOW gate-to-TFT link that does not consume a phone Wi-Fi client slot.
+- Authenticated browser-based OTA updates for the main gate, finish gate, and
+  TFT, with firmware-target validation before activation.
 - Sunlight-oriented 480x320 TFT UI with GPIO0 PWM backlight control.
 - Four explicit targets: N8R8 main gate, compact N4R2 main gate, N4R2 finish
   gate, and C3-MINI-1 TFT.
@@ -54,6 +56,10 @@ Current prerelease: **0.3.0**
 
 The default Wi-Fi password is intended for development. Change it in
 `src/config/Config.h` before public use.
+
+After every device has received this version once over USB, later firmware can
+be installed from `http://gymio.local/update`. The default OTA credentials are
+`admin` / `gymio-update`; change them in `src/config/Config.h` before public use.
 
 To build and upload the optional finish gate and TFT display:
 
@@ -87,7 +93,8 @@ All ESP-NOW devices must use the channel configured by
   for at most 15 simultaneous Wi-Fi clients.
 - Phone identity uses browser local storage. Private browsing or cleared site data
   creates a new identity.
-- The web interface has no operator authentication.
+- Rider and normal operator controls have no authentication. Firmware update
+  endpoints use separate HTTP Basic authentication.
 - ESP-NOW display frames are broadcast and unencrypted.
 
 ## License

@@ -8,9 +8,11 @@
 
 #include "config/Config.h"
 #include "gate/GateDetector.h"
+#include "ota/OtaUpdateServer.h"
 #include "protocol/DisplayStatusProtocol.h"
 #include "protocol/FinishGateProtocol.h"
 #include "protocol/GateControlProtocol.h"
+#include "protocol/OtaControlProtocol.h"
 #include "tof/ToFSensor.h"
 
 namespace
@@ -33,6 +35,7 @@ constexpr uint8_t kBroadcastAddress[ESP_NOW_ETH_ALEN] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 Adafruit_SSD1306 oled(128, 64, &Wire, -1);
+OtaUpdateServer otaServer("Gymio finish gate", IPAddress(192, 168, 4, 2));
 
 ToFSensor tof;
 bool tofReady = false;
@@ -66,6 +69,10 @@ uint32_t controlBootId = 0;
 uint32_t controlSequence = 0;
 uint32_t nextControlSendMs = 0;
 uint8_t controlRepeatsRemaining = 0;
+volatile bool otaRequested = false;
+uint8_t radioChannel = Config::kWifiAccessPointChannel;
+uint32_t lastChannelHopMs = 0;
+constexpr uint32_t kChannelHopIntervalMs = 300;
 
 enum class ButtonAction
 {
@@ -146,6 +153,18 @@ void updateIndicators(uint32_t nowMs)
 
 void receiveEspNow(const uint8_t *, const uint8_t *data, int length)
 {
+    if (length == static_cast<int>(sizeof(OtaControlProtocol::Command)))
+    {
+        OtaControlProtocol::Command command;
+        memcpy(&command, data, sizeof(command));
+        if (command.magic == OtaControlProtocol::kMagic &&
+            command.version == OtaControlProtocol::kVersion &&
+            command.target == OtaControlProtocol::Target::FinishGate)
+        {
+            otaRequested = true;
+        }
+        return;
+    }
     if (length == static_cast<int>(sizeof(FinishGateProtocol::Command)))
     {
         FinishGateProtocol::Command command;
@@ -233,7 +252,7 @@ void beginEspNow()
 
     esp_now_peer_info_t peer{};
     memcpy(peer.peer_addr, kBroadcastAddress, ESP_NOW_ETH_ALEN);
-    peer.channel = Config::kWifiAccessPointChannel;
+    peer.channel = 0;
     peer.ifidx = WIFI_IF_STA;
     peer.encrypt = false;
     if (esp_now_add_peer(&peer) != ESP_OK || esp_now_register_recv_cb(receiveEspNow) != ESP_OK)
@@ -243,6 +262,22 @@ void beginEspNow()
     }
     espNowReady = true;
     Serial.println("ESP-NOW finish link ready");
+}
+
+void serviceRadioDiscovery(uint32_t nowMs)
+{
+    // AP+STA makes the Gymio AP follow the home router's channel. When the
+    // main gate is not heard, scan channels until its periodic status frame is
+    // found. Once found, incoming frames keep this node on that channel.
+    if (otaServer.active() ||
+        (lastMainPacketMs != 0 && nowMs - lastMainPacketMs <= Config::kFinishGateTimeoutMs) ||
+        nowMs - lastChannelHopMs < kChannelHopIntervalMs)
+    {
+        return;
+    }
+    radioChannel = radioChannel >= 13 ? 1 : radioChannel + 1;
+    esp_wifi_set_channel(radioChannel, WIFI_SECOND_CHAN_NONE);
+    lastChannelHopMs = nowMs;
 }
 
 void sendHeartbeat()
@@ -283,7 +318,12 @@ void render(uint32_t nowMs)
 
     oled.drawLine(0, 17, 127, 17, SSD1306_WHITE);
     oled.setCursor(3, 22);
-    if (!tofReady)
+    if (otaServer.active())
+    {
+        oled.setTextSize(1);
+        oled.println("OTA UPDATE MODE");
+    }
+    else if (!tofReady)
     {
         oled.setTextSize(1);
         oled.println("VL53L1X ERROR");
@@ -326,7 +366,12 @@ void render(uint32_t nowMs)
 
     oled.setTextSize(2);
     oled.setCursor(3, 42);
-    if (configuredGateDistanceMm > 0 && nowMs < gateConfiguredUntilMs)
+    if (otaServer.active())
+    {
+        oled.setTextSize(1);
+        oled.print("192.168.4.2");
+    }
+    else if (configuredGateDistanceMm > 0 && nowMs < gateConfiguredUntilMs)
     {
         oled.print(configuredGateDistanceMm);
         oled.print("mm");
@@ -394,6 +439,23 @@ void loop()
 {
     static uint32_t lastDisplayRefreshMs = 0;
     const uint32_t nowMs = millis();
+    if (otaRequested)
+    {
+        otaRequested = false;
+        otaServer.begin(nowMs);
+    }
+    otaServer.service(nowMs);
+    serviceRadioDiscovery(nowMs);
+    if (otaServer.active())
+    {
+        if (nowMs - lastDisplayRefreshMs >= kDisplayRefreshIntervalMs)
+        {
+            lastDisplayRefreshMs = nowMs;
+            render(nowMs);
+        }
+        delay(2);
+        return;
+    }
     applyPendingCommand();
 
     const ButtonAction buttonAction = readButtonAction(nowMs);
@@ -410,10 +472,7 @@ void loop()
     }
     else if (buttonAction == ButtonAction::LongPress)
     {
-        const bool mainConnected = lastMainPacketMs != 0 &&
-                                   nowMs - lastMainPacketMs <= Config::kFinishGateTimeoutMs;
-        if (!sensorSetupActive && gateDetector.isCalibrated() &&
-            mainConnected && mainTimerReady)
+        if (!sensorSetupActive && gateDetector.isCalibrated())
         {
             physicalGateSetupMode = true;
             sensorSetupActive = true;
@@ -422,7 +481,7 @@ void loop()
         }
         else
         {
-            Serial.println("Finish gate setup rejected: main gate is not READY.");
+            Serial.println("Finish gate setup rejected: sensor is not calibrated or setup is active.");
         }
     }
     serviceControlCommand(nowMs);
@@ -451,6 +510,11 @@ void loop()
         {
             ++crossingCount;
             lastCrossingMs = nowMs;
+            // Send the changed crossing counter immediately so the main gate
+            // timestamps the finish with only ESP-NOW transport latency. The
+            // periodic heartbeat remains a reliable retry if this frame drops.
+            sendHeartbeat();
+            lastHeartbeatMs = nowMs;
             Serial.print("Finish crossing #");
             Serial.println(crossingCount);
         }

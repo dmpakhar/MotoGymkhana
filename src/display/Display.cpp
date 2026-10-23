@@ -222,6 +222,26 @@ void Display::showGateConfigured(int16_t distanceMm)
     oled_.display();
 }
 
+void Display::showUpdateMode(const char *ssid, const char *ipAddress, const char *status)
+{
+    if (!initialized_)
+        return;
+    oled_.clearDisplay();
+    oled_.setTextSize(1);
+    oled_.setCursor(0, 0);
+    oled_.println("GYMIO UPDATE MODE");
+    oled_.drawLine(0, 10, 127, 10, SSD1306_WHITE);
+    oled_.setCursor(0, 16);
+    oled_.print("WiFi: ");
+    oled_.println(ssid && *ssid ? ssid : "OFFLINE");
+    oled_.setCursor(0, 29);
+    oled_.print("IP: ");
+    oled_.println(ipAddress && *ipAddress ? ipAddress : "192.168.4.1");
+    oled_.setCursor(0, 46);
+    oled_.println(status && *status ? status : "READY FOR UPDATE");
+    oled_.display();
+}
+
 void Display::showError(const char *message)
 {
     if (!initialized_)

@@ -67,6 +67,45 @@ pio run -e esp32-s3-n8r8 -e main-gate-s3-mini -e finish-gate-s3-mini -e tft-c3-m
 All four environments must report `SUCCESS`. When an ESP-NOW protocol or
 radio channel changes, rebuild and flash every affected endpoint.
 
+## Updating over Wi-Fi (OTA)
+
+OTA becomes available only after this OTA-capable firmware has been installed
+on each device once by USB. Build the desired environment normally. Its image
+is stored at `.pio/build/<environment>/firmware.bin`.
+
+1. Power the complete Gymio system and connect the operator device to `Gymio`.
+2. Ensure the timer shows `READY` and close both sensor-setup modes.
+3. Open `http://gymio.local/update` (or `http://192.168.4.1/update`).
+4. If administrator authentication was enabled in Configuration, sign in with
+   the credentials from `Config.h` (`admin` / `gymio-update` by default).
+5. For the main gate, select its own `firmware.bin` and upload it directly.
+6. For the finish gate or TFT, press **Prepare**. Wait about three seconds,
+   open the displayed device updater, and upload that device's image.
+
+| Device | OTA address | Required build environment |
+|---|---|---|
+| Main S3 Mini | `192.168.4.1/update` | `main-gate-s3-mini` |
+| Main N8R8 | `192.168.4.1/update` | `esp32-s3-n8r8` |
+| Finish gate | `192.168.4.2/update` | `finish-gate-s3-mini` |
+| TFT display | `192.168.4.3/update` | `tft-c3-mini-1` |
+
+Each image embeds its build-target identity. An updater rejects an image built
+for a different target and leaves the running firmware unchanged. The finish
+gate and TFT leave maintenance mode automatically after three minutes if no
+upload is active. Do not remove power while an upload is in progress.
+
+## CI/CD releases
+
+GitHub Actions builds the three deployed firmware targets on pushes and pull
+requests. Pushing a version tag such as `v0.4.0` creates a GitHub Release containing:
+
+- `gymio-main-gate-s3-mini.bin`
+- `gymio-finish-gate-s3-mini.bin`
+- `gymio-tft-c3-mini-1.bin`
+
+The target name is deliberately part of each filename and is also verified by
+the device during OTA.
+
 ## Serial monitor
 
 All targets use 115200 baud:

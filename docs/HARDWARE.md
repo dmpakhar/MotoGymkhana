@@ -82,8 +82,9 @@ PlatformIO environment: `finish-gate-s3-mini`. The board has 4 MB flash and
 Wire the button and LEDs exactly as on the compact main gate: button to GND,
 and each active-high LED through its own 330–680 Ω resistor to GND. A short
 press sends the same attempt-cancel command as the start gate. Hold for 1.5
-seconds while the connected main gate is READY to enter finish-gate setup, then
-short-press to save the filtered reference minus the 150 mm safety margin.
+seconds after local sensor calibration to enter finish-gate setup, then
+short-press to save the filtered reference minus the 150 mm safety margin. The
+finish gate can be configured this way without the main gate being powered.
 Crossings remain blocked until the setup target is removed.
 
 ## Large display — ESP32-C3-MINI-1 and ST7796S

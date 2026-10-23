@@ -5,8 +5,10 @@
 #include <esp_wifi.h>
 
 #include "config/Config.h"
+#include "ota/OtaUpdateServer.h"
 #include "protocol/DisplayStatusProtocol.h"
 #include "protocol/GateControlProtocol.h"
+#include "protocol/OtaControlProtocol.h"
 #include "tft/TftHardwareConfig.h"
 
 namespace
@@ -20,6 +22,7 @@ constexpr uint8_t kCancelButtonPin = 20;
 constexpr uint32_t kButtonDebounceMs = 40;
 constexpr uint32_t kCommandRepeatIntervalMs = 40;
 constexpr uint8_t kCommandRepeatCount = 5;
+constexpr uint32_t kTimerRenderIntervalMs = 25;
 constexpr uint8_t kBroadcastAddress[ESP_NOW_ETH_ALEN] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
@@ -70,8 +73,12 @@ private:
 
 St7796Display display;
 lgfx::LGFX_Sprite digitSprite(&display);
+OtaUpdateServer otaServer("Gymio TFT display", IPAddress(192, 168, 4, 3));
 uint32_t lastTimerUpdateMs = 0;
 uint32_t lastStatusPacketMs = 0;
+uint32_t timerAnchorMs = 0;
+uint32_t timerAnchorReceivedAtMs = 0;
+bool timerRunning = false;
 char previousTimerText[10] = "         ";
 char displayedRider[25] = "NONAME";
 char displayedBestRider[25] = "";
@@ -90,6 +97,10 @@ uint32_t controlBootId = 0;
 uint32_t controlSequence = 0;
 uint32_t nextCommandSendMs = 0;
 uint8_t commandRepeatsRemaining = 0;
+volatile bool otaRequested = false;
+uint8_t radioChannel = Config::kWifiAccessPointChannel;
+uint32_t lastChannelHopMs = 0;
+constexpr uint32_t kChannelHopIntervalMs = 300;
 
 void setBacklightBrightness(uint8_t percent)
 {
@@ -107,6 +118,18 @@ void setBacklightEnabled(bool enabled)
 
 void receiveEspNow(const uint8_t *, const uint8_t *data, int length)
 {
+    if (length == static_cast<int>(sizeof(OtaControlProtocol::Command)))
+    {
+        OtaControlProtocol::Command command;
+        memcpy(&command, data, sizeof(command));
+        if (command.magic == OtaControlProtocol::kMagic &&
+            command.version == OtaControlProtocol::kVersion &&
+            command.target == OtaControlProtocol::Target::TftDisplay)
+        {
+            otaRequested = true;
+        }
+        return;
+    }
     if (length != static_cast<int>(sizeof(DisplayStatusProtocol::Frame)))
     {
         return;
@@ -337,6 +360,10 @@ void receiveStatus(uint32_t nowMs)
     frame.riderName[sizeof(frame.riderName) - 1U] = '\0';
     frame.absoluteBestRider[sizeof(frame.absoluteBestRider) - 1U] = '\0';
     lastStatusPacketMs = nowMs;
+    timerAnchorMs = frame.timeMs;
+    timerAnchorReceivedAtMs = nowMs;
+    timerRunning = strcmp(frame.state, "RUNNING") == 0 ||
+                   strcmp(frame.state, "CLEAR GATE") == 0;
     updateGateCount(frame.gateCount);
     updateHeaderState(frame.state);
     updateTimer(frame.timeMs, strcmp(frame.state, "READY") == 0);
@@ -410,7 +437,7 @@ void setup()
     {
         esp_now_peer_info_t gatePeer{};
         memcpy(gatePeer.peer_addr, kBroadcastAddress, ESP_NOW_ETH_ALEN);
-        gatePeer.channel = Config::kWifiAccessPointChannel;
+        gatePeer.channel = 0;
         gatePeer.ifidx = WIFI_IF_STA;
         gatePeer.encrypt = false;
         espNowReady = esp_now_add_peer(&gatePeer) == ESP_OK &&
@@ -424,16 +451,51 @@ void setup()
     }
 }
 
+void serviceRadioDiscovery(uint32_t nowMs)
+{
+    if (otaServer.active() ||
+        (lastStatusPacketMs != 0U && nowMs - lastStatusPacketMs <= 1500U) ||
+        nowMs - lastChannelHopMs < kChannelHopIntervalMs)
+    {
+        return;
+    }
+    radioChannel = radioChannel >= 13 ? 1 : radioChannel + 1;
+    esp_wifi_set_channel(radioChannel, WIFI_SECOND_CHAN_NONE);
+    lastChannelHopMs = nowMs;
+}
+
 void loop()
 {
     const uint32_t now = millis();
+    if (otaRequested)
+    {
+        otaRequested = false;
+        otaServer.begin(now);
+        updateHeaderState("OTA MODE");
+    }
+    otaServer.service(now);
+    if (otaServer.active())
+    {
+        delay(10);
+        return;
+    }
     serviceCancelButton(now);
     if (espNowReady)
     {
         receiveStatus(now);
+        serviceRadioDiscovery(now);
         if (lastStatusPacketMs != 0U && now - lastStatusPacketMs > 1500U)
         {
+            timerRunning = false;
             updateHeaderState("NO DATA");
+        }
+        else if (timerRunning && now - lastTimerUpdateMs >= kTimerRenderIntervalMs)
+        {
+            // ESP-NOW status frames provide authoritative checkpoints. Advance
+            // the visible timer locally between them so the large display is
+            // smooth even when a frame is delayed or lost.
+            lastTimerUpdateMs = now;
+            updateTimer(timerAnchorMs + (now - timerAnchorReceivedAtMs));
         }
     }
     delay(10);

@@ -182,6 +182,10 @@ The normal sequence is:
 4. `RESULT` — the completed time is displayed for five seconds.
 5. Gymio returns to `READY`; the next attempt defaults to unnamed.
 
+In one-gate mode, `CLEAR GATE` remains active for at least 1.5 seconds after
+the start. This is intentional: the entire motorcycle, including the rear
+wheel, must pass before the same gate becomes eligible to detect the finish.
+
 ### One-gate mode (`1GM`)
 
 Cross the main gate to start, clear its beam, ride the course, and cross the
@@ -196,6 +200,10 @@ two-gate attempt into a one-gate finish.
 When idle, the main gate enters `2GM` automatically after receiving finish-gate
 heartbeats. If the finish gate is absent for about 1.5 seconds, it returns to
 `1GM`. Do not start until the displayed mode matches the course layout.
+
+The finish gate sends a crossing immediately over ESP-NOW. Its 100 ms periodic
+heartbeat repeats the crossing counter as a fallback if the immediate packet is
+lost.
 
 ## Gate setup
 
@@ -238,10 +246,11 @@ mode, a short press cancels a running attempt instead.
 4. Enter the limit or use the current finish-sensor reading.
 5. Press **Finish Setup**, remove the target, and confirm `2GM`.
 
-The finish gate can also be configured locally with its GPIO8 button. While the
-main gate is connected and READY, hold for 1.5 seconds to enter `GATE SETUP`,
-place the target, and short-press to save. Remove the target before use. Its
-blue/yellow/green LEDs mean running, crossing, and ready, respectively.
+The finish gate can also be configured locally with its GPIO8 button. After its
+own sensor calibration, hold for 1.5 seconds to enter `GATE SETUP`, place the
+target, and short-press to save. The main gate does not need to be powered for
+this local setup. Remove the target before use. Its blue/yellow/green LEDs mean
+running, crossing, and ready, respectively.
 
 ## Status LEDs on the compact main gate
 
@@ -264,6 +273,33 @@ rider, current time, gate mode, absolute best time, and best rider. It uses
 ESP-NOW and does not consume a phone Wi-Fi client slot. `NO DATA` means no main
 gate update has arrived for more than about 1.5 seconds.
 
+## Firmware updates over Wi-Fi
+
+Open **Configuration** on the main page to connect the main gate to a home
+Wi-Fi or phone hotspot. The `Gymio` network stays active at the same time. The
+page shows upstream connection state, assigned IP, and the shared radio channel.
+Saved credentials survive restart; **Forget home Wi-Fi** returns the system to
+local-only operation.
+
+All devices must first receive an OTA-capable release over USB. For later
+updates, connect the operator phone or computer to `Gymio`, ensure the timer is
+`READY`, and open `http://gymio.local/update`.
+
+No login is required by default. Configuration contains an optional
+**Require administrator login** switch. When enabled, Configuration and OTA use
+HTTP Basic authentication; defaults are `admin` / `gymio-update`.
+
+- Main-gate firmware uploads directly on the update page.
+- For the finish gate, press **Prepare finish gate**, wait about three seconds,
+  and open `192.168.4.2/update`.
+- For the TFT, press **Prepare TFT display**, wait about three seconds, and open
+  `192.168.4.3/update`.
+
+Select only the `firmware.bin` built for that device. Gymio also checks the
+embedded target identity and rejects mismatched images. Do not remove power
+during an upload. A successful device restarts automatically; an unused remote
+maintenance page closes after three minutes.
+
 ## Data retention and limits
 
 - Up to 20 registered riders are kept.
@@ -272,7 +308,8 @@ gate update has arrived for more than about 1.5 seconds.
   the main gate restarts.
 - The minimum-valid-time setting is stored in flash and survives restarts.
 - Up to 15 phones can be connected to the Gymio Wi-Fi access point at once.
-- The web UI has no operator authentication in prerelease version 0.2.0.
+- Normal operator controls have no authentication. Configuration and OTA can
+  optionally use HTTP Basic authentication.
 
 ## Quick troubleshooting
 
@@ -296,7 +333,8 @@ run firmware configured for the same ESP-NOW channel.
 
 Verify sensor alignment and threshold. The beam must intersect a stable part of
 the motorcycle rather than a narrow gap. Use Sensor Setup and test several fast
-passes before the event.
+passes before the event. Production gate profiles use a 20 ms ToF timing budget
+and accept a single reading at least 100 mm inside the threshold immediately.
 
 ### The timer remains at `CLEAR GATE`
 

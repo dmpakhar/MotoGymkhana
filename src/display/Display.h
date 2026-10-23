@@ -18,6 +18,7 @@ public:
     void showResult(uint32_t resultMs);
     void showGateSetup(int16_t distanceMm);
     void showGateConfigured(int16_t distanceMm);
+    void showUpdateMode(const char *ssid, const char *ipAddress, const char *status);
     void showError(const char *message);
 
 private:

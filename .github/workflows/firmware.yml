@@ -1,0 +1,52 @@
+name: Firmware CI/CD
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment:
+          - main-gate-s3-mini
+          - finish-gate-s3-mini
+          - tft-c3-mini-1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install platformio
+      - run: pio run -e ${{ matrix.environment }}
+      - name: Name firmware for its target
+        run: cp .pio/build/${{ matrix.environment }}/firmware.bin gymio-${{ matrix.environment }}.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gymio-${{ matrix.environment }}
+          path: gymio-${{ matrix.environment }}.bin
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: gymio-*
+          path: release
+          merge-multiple: true
+      - name: Publish firmware release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" release/*.bin --repo "${GITHUB_REPOSITORY}" --generate-notes --verify-tag
