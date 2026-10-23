@@ -2,5 +2,5 @@
 
 namespace Version
 {
-constexpr char kString[] = "0.4.1";
+constexpr char kString[] = "0.4.2";
 }

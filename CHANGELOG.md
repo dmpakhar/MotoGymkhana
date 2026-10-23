@@ -2,6 +2,14 @@
 
 All notable changes are documented here. Versions follow Semantic Versioning.
 
+## 0.4.2 - 2026-10-23
+
+### Changed
+
+- Removed the manual main-gate firmware file picker from the update center.
+- Main-gate updates are installed directly from the latest public GitHub
+  Release.
+
 ## 0.4.1 - 2026-10-23
 
 ### Added

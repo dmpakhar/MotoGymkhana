@@ -292,19 +292,20 @@ HTTP Basic authentication; defaults are `admin` / `gymio-update`.
 On the update page, **Check for updates** queries the latest public GitHub
 Release. When a newer version exists, **Install update** downloads and validates
 the main-gate image, writes the inactive OTA slot, and restarts automatically.
-The timer must be `READY`. Version 0.4.1 must be installed once using USB or the
-manual upload form before this one-button path is available for later releases.
+The timer must be `READY`. Version 0.4.1 or newer must be installed once before
+this one-button path is available for later releases.
 
-- Main-gate firmware uploads directly on the update page.
+- Main-gate updates require no local firmware file: use **Check for updates**
+  and then **Install update**.
 - For the finish gate, press **Prepare finish gate**, wait about three seconds,
   and open `192.168.4.2/update`.
 - For the TFT, press **Prepare TFT display**, wait about three seconds, and open
   `192.168.4.3/update`.
 
-Select only the `firmware.bin` built for that device. Gymio also checks the
-embedded target identity and rejects mismatched images. Do not remove power
-during an upload. A successful device restarts automatically; an unused remote
-maintenance page closes after three minutes.
+For finish-gate and TFT uploads, select only the `firmware.bin` built for that
+device. Gymio checks the embedded target identity and rejects mismatched images.
+Do not remove power during an update. A successful device restarts
+automatically; an unused remote maintenance page closes after three minutes.
 
 ## Data retention and limits
 
