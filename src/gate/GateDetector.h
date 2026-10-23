@@ -14,7 +14,11 @@ enum class GateEvent
 class GateDetector
 {
 public:
-    GateEvent update(int16_t distanceMm, uint32_t nowMs);
+    GateEvent update(int16_t distanceMm, uint32_t nowMs,
+                     uint16_t signalRateKcps = 0, uint16_t ambientRateKcps = 0);
+    bool isHighConfidenceEntrySample(int16_t distanceMm,
+                                     uint16_t signalRateKcps,
+                                     uint16_t ambientRateKcps) const;
     bool setTriggerDistanceMm(int16_t triggerDistanceMm);
     bool setTriggerFromReferenceDistanceMm(int16_t referenceDistanceMm);
 
@@ -29,7 +33,7 @@ private:
     uint8_t sampleCount_ = 0;
     uint8_t nextSampleIndex_ = 0;
     int32_t sampleSum_ = 0;
-    int32_t calibrationSum_ = 0;
+    int16_t calibrationSamples_[Config::kGateCalibrationSamples]{};
     uint8_t calibrationCount_ = 0;
     int16_t triggerDistanceMm_ = -1;
     bool calibrated_ = false;

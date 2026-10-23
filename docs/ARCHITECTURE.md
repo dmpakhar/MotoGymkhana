@@ -44,12 +44,16 @@ GateDetector -- filtered distance --> OLED / web status
 ```
 
 The gate detector normalizes a no-target reading to 4000 mm. It calibrates from
-20 clear-gate samples, maintains a five-sample moving average, and initially
-sets the trigger 150 mm closer than the calibrated baseline. Entry detection
+the central 10 of 20 sorted clear-gate samples, rejecting the lowest and highest
+quartiles as startup outliers. It maintains a five-sample moving average and
+initially sets the trigger 150 mm closer than the calibrated baseline. Entry detection
 uses raw distance, preventing a fast crossing from being diluted by the moving
 average. The sensor uses a 20 ms timing budget (about 50 samples per second).
-A valid reading at least 100 mm inside the configured threshold is accepted in
-one sensor frame; marginal readings require 20 ms confirmation.
+A one-frame crossing is accepted only when it is at least 250 mm inside the
+configured threshold, has at least 2500 kcps returned signal, and its signal is
+at least twice the ambient rate. Marginal or weak readings require 20 ms
+confirmation. This rejects isolated ToF spikes while retaining a one-frame path
+for a fast wheel with a strong optical return.
 Release detection uses the filtered distance and must remain stable for 250 ms,
 preventing a single far or no-target sample from arming the finish while the
 gate is still occupied. In one-gate mode, the timer additionally waits at least

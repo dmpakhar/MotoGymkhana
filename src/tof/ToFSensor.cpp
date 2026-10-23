@@ -30,6 +30,30 @@ bool ToFSensor::readDistance(int16_t &distanceMm)
     }
 
     distanceMm = sensor_.distance();
+    uint16_t signalRate = 0;
+    uint16_t ambientRate = 0;
+    if (distanceMm >= 0 &&
+        sensor_.VL53L1X_GetSignalRate(&signalRate) == VL53L1X_ERROR_NONE &&
+        sensor_.VL53L1X_GetAmbientRate(&ambientRate) == VL53L1X_ERROR_NONE)
+    {
+        signalRateKcps_ = signalRate;
+        ambientRateKcps_ = ambientRate;
+    }
+    else
+    {
+        signalRateKcps_ = 0;
+        ambientRateKcps_ = 0;
+    }
     sensor_.clearInterrupt();
     return true;
+}
+
+uint16_t ToFSensor::signalRateKcps() const
+{
+    return signalRateKcps_;
+}
+
+uint16_t ToFSensor::ambientRateKcps() const
+{
+    return ambientRateKcps_;
 }

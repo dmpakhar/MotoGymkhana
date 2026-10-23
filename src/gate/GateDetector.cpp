@@ -2,17 +2,35 @@
 
 #include "config/Config.h"
 
-GateEvent GateDetector::update(int16_t distanceMm, uint32_t nowMs)
+GateEvent GateDetector::update(int16_t distanceMm, uint32_t nowMs,
+                               uint16_t signalRateKcps, uint16_t ambientRateKcps)
 {
     const int16_t normalizedDistanceMm = distanceMm < 0 ? Config::kTofNoTargetDistanceMm : distanceMm;
 
     if (!calibrated_)
     {
-        calibrationSum_ += normalizedDistanceMm;
-        ++calibrationCount_;
+        calibrationSamples_[calibrationCount_++] = normalizedDistanceMm;
         if (calibrationCount_ == Config::kGateCalibrationSamples)
         {
-            triggerDistanceMm_ = calibrationSum_ / calibrationCount_ - Config::kGateApproachMm;
+            int16_t sorted[Config::kGateCalibrationSamples];
+            memcpy(sorted, calibrationSamples_, sizeof(sorted));
+            for (uint8_t i = 1; i < Config::kGateCalibrationSamples; ++i)
+            {
+                const int16_t value = sorted[i];
+                int8_t j = static_cast<int8_t>(i) - 1;
+                while (j >= 0 && sorted[j] > value)
+                {
+                    sorted[j + 1] = sorted[j];
+                    --j;
+                }
+                sorted[j + 1] = value;
+            }
+            constexpr uint8_t trim = Config::kGateCalibrationSamples / 4;
+            int32_t trimmedSum = 0;
+            for (uint8_t i = trim; i < Config::kGateCalibrationSamples - trim; ++i)
+                trimmedSum += sorted[i];
+            constexpr uint8_t retained = Config::kGateCalibrationSamples - 2 * trim;
+            triggerDistanceMm_ = trimmedSum / retained - Config::kGateApproachMm;
             calibrated_ = true;
         }
         return GateEvent::None;
@@ -45,11 +63,8 @@ GateEvent GateDetector::update(int16_t distanceMm, uint32_t nowMs)
     // measurements before they reach this detector, so accept one sample when
     // it is comfortably inside the gate threshold. Keep normal confirmation
     // for marginal readings near the threshold.
-    const int16_t immediateEntryThresholdMm =
-        triggerDistanceMm_ > Config::kGateImmediateEntryMarginMm
-            ? triggerDistanceMm_ - Config::kGateImmediateEntryMarginMm
-            : 0;
-    if (!gateOccupied_ && normalizedDistanceMm <= immediateEntryThresholdMm)
+    if (!gateOccupied_ &&
+        isHighConfidenceEntrySample(normalizedDistanceMm, signalRateKcps, ambientRateKcps))
     {
         gateOccupied_ = true;
         candidateActive_ = false;
@@ -80,6 +95,23 @@ GateEvent GateDetector::update(int16_t distanceMm, uint32_t nowMs)
     gateOccupied_ = objectPresent;
     candidateActive_ = false;
     return gateOccupied_ ? GateEvent::CrossingConfirmed : GateEvent::GateCleared;
+}
+
+bool GateDetector::isHighConfidenceEntrySample(int16_t distanceMm,
+                                                uint16_t signalRateKcps,
+                                                uint16_t ambientRateKcps) const
+{
+    if (!calibrated_ || distanceMm < 0)
+        return false;
+    const int16_t immediateEntryThresholdMm =
+        triggerDistanceMm_ > Config::kGateImmediateEntryMarginMm
+            ? triggerDistanceMm_ - Config::kGateImmediateEntryMarginMm
+            : 0;
+    const uint32_t requiredForAmbient =
+        static_cast<uint32_t>(ambientRateKcps) * Config::kGateImmediateSignalAmbientRatio;
+    return distanceMm <= immediateEntryThresholdMm &&
+           signalRateKcps >= Config::kGateImmediateMinSignalKcps &&
+           static_cast<uint32_t>(signalRateKcps) >= requiredForAmbient;
 }
 
 bool GateDetector::setTriggerDistanceMm(int16_t triggerDistanceMm)

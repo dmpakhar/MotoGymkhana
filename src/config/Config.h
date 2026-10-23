@@ -27,11 +27,12 @@ constexpr int16_t kTofNoTargetDistanceMm = 4000;
 // Entry uses raw ranging so a fast crossing is not diluted by the moving
 // average. A clearly close sample may confirm immediately; readings close to
 // the configured threshold still require two samples to reject edge noise.
-constexpr int16_t kGateImmediateEntryMarginMm = 100;
-// Once a one-gate attempt is armed, accept a fast return crossing from one
-// valid sample. The smaller margin makes the finish easier to catch without
-// treating readings right at the configured threshold as a finish.
-constexpr int16_t kSingleGateFinishImmediateMarginMm = 100;
+constexpr int16_t kGateImmediateEntryMarginMm = 250;
+// A one-frame crossing is allowed only when the return is substantially
+// stronger than ambient light. Weak/ambiguous samples still participate in
+// normal two-frame confirmation instead of being discarded completely.
+constexpr uint16_t kGateImmediateMinSignalKcps = 2500;
+constexpr uint8_t kGateImmediateSignalAmbientRatio = 2;
 constexpr uint16_t kGateConfirmMs = 20;
 constexpr uint16_t kGateReleaseMs = 250;
 // In single-gate mode the clear space between the motorcycle's wheels must not

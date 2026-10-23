@@ -2,6 +2,18 @@
 
 All notable changes are documented here. Versions follow Semantic Versioning.
 
+## 0.5.2 - 2026-10-23
+
+### Changed
+
+- One-frame gate crossings now require a deeper threshold margin and a strong
+  VL53L1X signal relative to ambient light.
+- Weak or marginal readings require normal multi-frame confirmation on the
+  main gate, second gate, and single-gate finish path.
+- Automatic calibration now uses a trimmed sample set to reject startup
+  distance outliers.
+- Serial diagnostics now include signal and ambient rates for field tuning.
+
 ## 0.5.1 - 2026-10-23
 
 ### Fixed

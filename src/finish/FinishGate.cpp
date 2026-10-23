@@ -505,7 +505,8 @@ void loop()
     if (tofReady && tof.readDistance(measuredDistanceMm))
     {
         distanceMm = measuredDistanceMm;
-        const GateEvent gateEvent = gateDetector.update(distanceMm, nowMs);
+        const GateEvent gateEvent = gateDetector.update(
+            distanceMm, nowMs, tof.signalRateKcps(), tof.ambientRateKcps());
         if (gateSetRequested)
         {
             gateSetRequested = false;
@@ -554,7 +555,11 @@ void loop()
         else
         {
             Serial.print(distanceMm);
-            Serial.println(" mm");
+            Serial.print(" mm, signal/ambient: ");
+            Serial.print(tof.signalRateKcps());
+            Serial.print('/');
+            Serial.print(tof.ambientRateKcps());
+            Serial.println(" kcps");
         }
     }
 

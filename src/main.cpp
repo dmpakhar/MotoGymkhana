@@ -271,7 +271,8 @@ void loop()
         }
     }
 
-    const GateEvent gateEvent = gateDetector.update(distanceMm, nowMs);
+    const GateEvent gateEvent = gateDetector.update(
+        distanceMm, nowMs, tof.signalRateKcps(), tof.ambientRateKcps());
 #ifdef GYMIO_MAIN_S3_MINI
     if (!physicalGateSetupMode && !physicalGateAwaitingClear &&
         gateEvent == GateEvent::CrossingConfirmed)
@@ -330,11 +331,10 @@ void loop()
         bool localCrossing = gateEvent == GateEvent::CrossingConfirmed;
         if (!twoGateMode && timer.state() == TimerState::RunningArmed && distanceMm >= 0)
         {
-            const int16_t finishThresholdMm =
-                gateDetector.triggerDistanceMm() > Config::kSingleGateFinishImmediateMarginMm
-                    ? gateDetector.triggerDistanceMm() - Config::kSingleGateFinishImmediateMarginMm
-                    : 0;
-            localCrossing = localCrossing || distanceMm <= finishThresholdMm;
+            localCrossing = localCrossing || gateDetector.isHighConfidenceEntrySample(
+                                                 distanceMm,
+                                                 tof.signalRateKcps(),
+                                                 tof.ambientRateKcps());
         }
         static bool previousTwoGateMode = false;
         if (twoGateMode != previousTwoGateMode)
@@ -364,7 +364,11 @@ void loop()
     Serial.print(gateDetector.filteredDistanceMm());
     Serial.print(" mm, trigger: ");
     Serial.print(gateDetector.triggerDistanceMm());
-    Serial.println(" mm");
+    Serial.print(" mm, signal/ambient: ");
+    Serial.print(tof.signalRateKcps());
+    Serial.print('/');
+    Serial.print(tof.ambientRateKcps());
+    Serial.println(" kcps");
 
     if (timerEvent == TimerEvent::Started)
     {

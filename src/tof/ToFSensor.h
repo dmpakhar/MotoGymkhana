@@ -8,6 +8,8 @@ class ToFSensor
 public:
     bool begin();
     bool readDistance(int16_t &distanceMm);
+    uint16_t signalRateKcps() const;
+    uint16_t ambientRateKcps() const;
 
 private:
     // The library forwards its optional default IRQ value through an unsigned
@@ -24,4 +26,6 @@ private:
     };
 
     Sensor sensor_;
+    uint16_t signalRateKcps_ = 0;
+    uint16_t ambientRateKcps_ = 0;
 };
