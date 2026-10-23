@@ -289,6 +289,12 @@ No login is required by default. Configuration contains an optional
 **Require administrator login** switch. When enabled, Configuration and OTA use
 HTTP Basic authentication; defaults are `admin` / `gymio-update`.
 
+On the update page, **Check for updates** queries the latest public GitHub
+Release. When a newer version exists, **Install update** downloads and validates
+the main-gate image, writes the inactive OTA slot, and restarts automatically.
+The timer must be `READY`. Version 0.4.1 must be installed once using USB or the
+manual upload form before this one-button path is available for later releases.
+
 - Main-gate firmware uploads directly on the update page.
 - For the finish gate, press **Prepare finish gate**, wait about three seconds,
   and open `192.168.4.2/update`.

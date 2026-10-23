@@ -72,11 +72,12 @@ const $=id=>document.getElementById(id);let loaded=false;async function request(
 constexpr char kOtaPage[] PROGMEM = R"HTML(
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gymio firmware update</title><style>
 :root{color-scheme:dark}body{margin:0;background:#10151b;color:#edf3f7;font:16px system-ui,sans-serif}.app{max-width:620px;margin:auto;padding:16px}.card{background:#1a232d;border-radius:16px;padding:20px;margin:14px 0}h1{font-size:22px}button,input{display:block;width:100%;box-sizing:border-box;padding:14px;margin:12px 0;font-size:16px}button{border:0;border-radius:10px;background:#83df9c;color:#10151b;font-weight:700}.secondary{background:#3d5262;color:#edf3f7}.note{color:#9cb0bf;font-size:14px}a{color:#83df9c}</style></head><body><main class="app"><h1>GYMIO FIRMWARE UPDATE</h1><p><a href="/main">← Main page</a></p>
-<section class="card"><h2>Release</h2><p>Installed: <strong id="installed">—</strong></p><p id="releaseStatus" class="note">Press the button to check GitHub.</p><button onclick="checkUpdates()">Check for updates</button></section>
+<section class="card"><h2>Release</h2><p>Installed: <strong id="installed">—</strong></p><p id="releaseStatus" class="note">Press the button to check GitHub.</p><button onclick="checkUpdates()">Check for updates</button><button id="installUpdate" onclick="installUpdate()" hidden>Install update</button></section>
 <section class="card"><h2>Main gate</h2><p class="note">Use firmware.bin from the active main-gate PlatformIO environment.</p><form method="POST" action="/update/main" enctype="multipart/form-data"><input type="file" name="firmware" accept=".bin" required><button>Update main gate</button></form></section>
 <section class="card"><h2>Finish gate</h2><p class="note">The finish gate temporarily joins Gymio Wi-Fi at 192.168.4.2 for three minutes.</p><button onclick="prepare('finish')">Prepare finish gate</button><a id="finishLink" href="http://192.168.4.2/update" hidden>Open finish-gate updater</a></section>
 <section class="card"><h2>TFT display</h2><p class="note">The display temporarily joins Gymio Wi-Fi at 192.168.4.3 for three minutes.</p><button onclick="prepare('tft')">Prepare TFT display</button><a id="tftLink" href="http://192.168.4.3/update" hidden>Open TFT updater</a></section><p id="status" class="note"></p></main><script>
-async function checkUpdates(){const s=document.getElementById('releaseStatus');s.textContent='Checking GitHub…';try{const r=await fetch('/api/update/check',{method:'POST'}),d=await r.json();if(!r.ok)throw new Error(d.error||'Check failed');s.textContent=d.updateAvailable?'Update available: '+d.latestVersion:'Up to date · '+d.currentVersion}catch(e){s.textContent=e.message}}
+async function checkUpdates(){const s=document.getElementById('releaseStatus'),b=document.getElementById('installUpdate');b.hidden=true;s.textContent='Checking GitHub…';try{const r=await fetch('/api/update/check',{method:'POST'}),d=await r.json();if(!r.ok)throw new Error(d.error||'Check failed');s.textContent=d.updateAvailable?'Update available: '+d.latestVersion:'Up to date · '+d.currentVersion;b.hidden=!d.updateAvailable}catch(e){s.textContent=e.message}}
+async function installUpdate(){if(!confirm('Install the update on the main gate now? The timer will restart.'))return;const s=document.getElementById('releaseStatus'),b=document.getElementById('installUpdate');b.disabled=true;s.textContent='Starting update…';try{const r=await fetch('/api/update/install',{method:'POST'}),d=await r.json();if(!r.ok)throw new Error(d.error||'Install failed');s.textContent='Downloading firmware. Main gate will restart automatically.'}catch(e){s.textContent=e.message;b.disabled=false}}
 async function prepare(target){const status=document.getElementById('status');status.textContent='Sending maintenance command…';const r=await fetch('/api/ota/prepare?target='+target,{method:'POST'});const data=await r.json();if(!r.ok){status.textContent=data.error||'Failed';return}status.textContent='Device is joining Wi-Fi. Wait about 3 seconds, then open its updater.';setTimeout(()=>document.getElementById(target+'Link').hidden=false,3000)}
 fetch('/api/configuration').then(r=>r.json()).then(d=>document.getElementById('installed').textContent=d.version).catch(()=>{});
 </script></body></html>
@@ -212,6 +213,7 @@ bool MotoWebServer::begin()
     server_.on("/api/configuration/wifi", HTTP_DELETE, [this]() { handleDisconnectWifi(); });
     server_.on("/api/configuration/security", HTTP_POST, [this]() { handleSaveSecurityConfiguration(); });
     server_.on("/api/update/check", HTTP_POST, [this]() { handleCheckForUpdates(); });
+    server_.on("/api/update/install", HTTP_POST, [this]() { handleInstallOnlineUpdate(); });
     server_.on("/api/ota/prepare", HTTP_POST, [this]() { handlePrepareRemoteOta(); });
     server_.on(
         "/update/main", HTTP_POST,
@@ -387,6 +389,7 @@ void MotoWebServer::handleClient()
 {
     server_.handleClient();
     serviceStationConnection();
+    serviceOnlineUpdate();
     if (otaRestartAtMs_ != 0 && static_cast<int32_t>(millis() - otaRestartAtMs_) >= 0)
     {
         ESP.restart();
@@ -709,11 +712,125 @@ void MotoWebServer::handleCheckForUpdates()
     if (normalized.startsWith("v"))
         normalized.remove(0, 1);
     const bool available = normalized != Version::kString;
+    latestReleaseTag_ = latest;
+    onlineUpdateAvailable_ = available;
     updateModeStatus_ = available ? String("AVAILABLE ") + latest : "FIRMWARE CURRENT";
     String response = String("{\"currentVersion\":\"") + Version::kString +
                       "\",\"latestVersion\":\"" + latest +
                       "\",\"updateAvailable\":" + (available ? "true}" : "false}");
     server_.send(200, "application/json", response);
+}
+
+void MotoWebServer::handleInstallOnlineUpdate()
+{
+    if (!authenticateAdministration())
+        return;
+    if (!onlineUpdateAvailable_ || latestReleaseTag_.isEmpty())
+    {
+        server_.send(409, "application/json", "{\"error\":\"Check for updates first\"}");
+        return;
+    }
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        server_.send(503, "application/json", "{\"error\":\"Home Wi-Fi is offline\"}");
+        return;
+    }
+    if (status_.timerState != TimerState::Ready || sensorSetupActive_ || isFinishGateSetupActive())
+    {
+        server_.send(409, "application/json", "{\"error\":\"Update requires READY state\"}");
+        return;
+    }
+    updateModeUntilMs_ = millis() + Config::kOtaMaintenanceTimeoutMs;
+    updateModeStatus_ = "STARTING UPDATE...";
+    onlineUpdateScheduledAtMs_ = millis() + 1000;
+    server_.send(202, "application/json", "{\"ok\":true}");
+}
+
+void MotoWebServer::serviceOnlineUpdate()
+{
+    if (onlineUpdateScheduledAtMs_ == 0 ||
+        static_cast<int32_t>(millis() - onlineUpdateScheduledAtMs_) < 0)
+        return;
+    onlineUpdateScheduledAtMs_ = 0;
+    updateModeStatus_ = "DOWNLOADING...";
+
+    const String url = String("https://github.com/dmpakhar/MotoGymkhana/releases/download/") +
+                       latestReleaseTag_ + "/gymio-main-gate-s3-mini.bin";
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.setTimeout(15000);
+    if (!http.begin(client, url))
+    {
+        updateModeStatus_ = "DOWNLOAD INIT FAILED";
+        return;
+    }
+    const int code = http.GET();
+    if (code != HTTP_CODE_OK)
+    {
+        updateModeStatus_ = String("DOWNLOAD HTTP ") + code;
+        http.end();
+        return;
+    }
+
+    const int contentLength = http.getSize();
+    otaTargetValidator_.reset();
+    if (!Update.begin(contentLength > 0 ? static_cast<size_t>(contentLength) : UPDATE_SIZE_UNKNOWN))
+    {
+        updateModeStatus_ = "OTA SPACE ERROR";
+        http.end();
+        return;
+    }
+
+    WiFiClient *stream = http.getStreamPtr();
+    uint8_t buffer[1024];
+    size_t written = 0;
+    uint32_t lastDataMs = millis();
+    bool failed = false;
+    while (http.connected() && (contentLength < 0 || written < static_cast<size_t>(contentLength)))
+    {
+        const size_t available = stream->available();
+        if (available == 0)
+        {
+            if (millis() - lastDataMs > 15000)
+            {
+                failed = true;
+                break;
+            }
+            delay(1);
+            continue;
+        }
+        const size_t chunk = min(available, sizeof(buffer));
+        const int received = stream->readBytes(buffer, chunk);
+        if (received <= 0)
+        {
+            failed = true;
+            break;
+        }
+        lastDataMs = millis();
+        otaTargetValidator_.consume(buffer, static_cast<size_t>(received));
+        if (Update.write(buffer, static_cast<size_t>(received)) != static_cast<size_t>(received))
+        {
+            failed = true;
+            break;
+        }
+        written += static_cast<size_t>(received);
+    }
+    http.end();
+
+    const bool complete = !failed && (contentLength < 0 || written == static_cast<size_t>(contentLength));
+    const bool valid = complete && otaTargetValidator_.found();
+    const bool installed = valid && Update.end(true);
+    if (!installed)
+    {
+        Update.abort();
+        updateModeStatus_ = valid ? "OTA WRITE FAILED" : "INVALID FIRMWARE";
+        return;
+    }
+    updateModeStatus_ = "UPDATE INSTALLED";
+    onlineUpdateAvailable_ = false;
+    otaRestartAtMs_ = millis() + 1000;
 }
 
 void MotoWebServer::handlePrepareRemoteOta()

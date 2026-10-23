@@ -2,6 +2,20 @@
 
 All notable changes are documented here. Versions follow Semantic Versioning.
 
+## 0.4.1 - 2026-10-23
+
+### Added
+
+- One-button main-gate update installation from the latest public GitHub
+  Release, including target validation, inactive OTA partition writes, and
+  automatic restart.
+- Update-page install control that appears only when a newer release is found.
+
+### Changed
+
+- PlatformIO is pinned to Espressif32 7.0.1 so local and CI firmware builds use
+  the same tested Arduino and ESP-NOW APIs.
+
 ## 0.4.0 - 2026-10-23
 
 ### Changed

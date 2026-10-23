@@ -90,6 +90,9 @@ private:
     uint32_t otaRestartAtMs_ = 0;
     uint32_t updateModeUntilMs_ = 0;
     String updateModeStatus_ = "READY FOR UPDATE";
+    String latestReleaseTag_;
+    bool onlineUpdateAvailable_ = false;
+    uint32_t onlineUpdateScheduledAtMs_ = 0;
     FirmwareTargetValidator otaTargetValidator_{FirmwareIdentity::kMarker};
     portMUX_TYPE finishGateMux_ = portMUX_INITIALIZER_UNLOCKED;
     volatile uint32_t lastFinishPacketMs_ = 0;
@@ -120,6 +123,7 @@ private:
     void handleDisconnectWifi();
     void handleSaveSecurityConfiguration();
     void handleCheckForUpdates();
+    void handleInstallOnlineUpdate();
     void handlePrepareRemoteOta();
     void handleMainOtaComplete();
     void handleMainOtaUpload();
@@ -150,6 +154,7 @@ private:
     void startStationConnection();
     void serviceStationConnection();
     void restartMdns();
+    void serviceOnlineUpdate();
     const Rider &riderForStatus() const;
     bool isAttemptValid(const Attempt &attempt) const;
     bool isAttemptAutomaticallyInvalid(const Attempt &attempt) const;
