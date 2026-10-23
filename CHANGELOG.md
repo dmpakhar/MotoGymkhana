@@ -2,6 +2,21 @@
 
 All notable changes are documented here. Versions follow Semantic Versioning.
 
+## 0.5.0 - 2026-10-23
+
+### Added
+
+- Device version reporting from the finish gate and TFT display over ESP-NOW.
+- Per-device online, version, and update status in the update center.
+- Sequential **Update all devices** workflow, with the main gate updated last.
+
+### Changed
+
+- Redesigned the firmware update page into release, main-gate, second-gate,
+  and display panels.
+- Device update buttons are shown only when the connected device is older than
+  the latest release.
+
 ## 0.4.4 - 2026-10-23
 
 ### Added

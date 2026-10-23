@@ -11,6 +11,7 @@
 #include "config/Config.h"
 #include "config/Version.h"
 #include "protocol/DisplayStatusProtocol.h"
+#include "protocol/DeviceStatusProtocol.h"
 #include "protocol/FinishGateProtocol.h"
 #include "protocol/GateControlProtocol.h"
 #include "protocol/OtaControlProtocol.h"
@@ -59,6 +60,25 @@ refreshFinish();setInterval(refreshFinish,500);
 constexpr uint8_t kEspNowBroadcastAddress[ESP_NOW_ETH_ALEN] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
+bool isVersionOlder(const char *current, const char *latest)
+{
+    if (current == nullptr || current[0] == '\0')
+        return true;
+    if (latest != nullptr && latest[0] == 'v')
+        ++latest;
+    int currentParts[3]{};
+    int latestParts[3]{};
+    if (sscanf(current, "%d.%d.%d", &currentParts[0], &currentParts[1], &currentParts[2]) != 3 ||
+        sscanf(latest, "%d.%d.%d", &latestParts[0], &latestParts[1], &latestParts[2]) != 3)
+        return strcmp(current, latest) != 0;
+    for (uint8_t i = 0; i < 3; ++i)
+    {
+        if (currentParts[i] != latestParts[i])
+            return currentParts[i] < latestParts[i];
+    }
+    return false;
+}
+
 constexpr char kConfigurationPage[] PROGMEM = R"HTML(
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gymio configuration</title><style>
 :root{color-scheme:dark}body{margin:0;background:#10151b;color:#edf3f7;font:16px system-ui,sans-serif}.app{max-width:620px;margin:auto;padding:16px}.card{background:#1a232d;border-radius:16px;padding:20px;margin:14px 0}h1{font-size:22px}label{display:block;color:#9cb0bf;margin-top:12px}input,button{display:block;width:100%;box-sizing:border-box;padding:14px;margin:8px 0;font-size:16px;border-radius:10px}input{background:#10151b;color:#edf3f7;border:1px solid #3d5262}button{border:0;background:#83df9c;color:#10151b;font-weight:700}.secondary{background:#3d5262;color:#edf3f7}.note{color:#9cb0bf;font-size:14px}a{color:#83df9c}.status{font-weight:700}</style></head><body><main class="app"><h1>GYMIO CONFIGURATION</h1><p><a href="/main">← Main page</a></p>
@@ -71,15 +91,13 @@ const $=id=>document.getElementById(id);let loaded=false;async function request(
 
 constexpr char kOtaPage[] PROGMEM = R"HTML(
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gymio firmware update</title><style>
-:root{color-scheme:dark}body{margin:0;background:#10151b;color:#edf3f7;font:16px system-ui,sans-serif}.app{max-width:620px;margin:auto;padding:16px}.card{background:#1a232d;border-radius:16px;padding:20px;margin:14px 0}h1{font-size:22px}button,input{display:block;width:100%;box-sizing:border-box;padding:14px;margin:12px 0;font-size:16px}button{border:0;border-radius:10px;background:#83df9c;color:#10151b;font-weight:700}.secondary{background:#3d5262;color:#edf3f7}.note{color:#9cb0bf;font-size:14px}a{color:#83df9c}</style></head><body><main class="app"><h1>GYMIO FIRMWARE UPDATE</h1><p><a href="/main">← Main page</a></p>
-<section class="card"><h2>Release</h2><p>Installed on main gate: <strong id="installed">—</strong></p><p id="releaseStatus" class="note">Press the button to check GitHub.</p><button onclick="checkUpdates()">Check for updates</button><button id="installUpdate" onclick="installUpdate()" hidden>Install on main gate</button></section>
-<section class="card"><h2>Finish gate</h2><p class="note">The main gate downloads and sends the matching firmware automatically.</p><button id="installFinish" onclick="installFinish()" hidden>Install latest on finish gate</button></section>
-<section class="card"><h2>TFT display</h2><p class="note">The main gate downloads and sends the matching firmware automatically.</p><button id="installTft" onclick="installTft()" hidden>Install latest on TFT display</button></section><p id="status" class="note"></p></main><script>
-async function checkUpdates(){const s=document.getElementById('releaseStatus'),b=document.getElementById('installUpdate'),f=document.getElementById('installFinish'),t=document.getElementById('installTft');b.hidden=true;f.hidden=true;t.hidden=true;s.textContent='Checking GitHub…';try{const r=await fetch('/api/update/check',{method:'POST'}),d=await r.json();if(!r.ok)throw new Error(d.error||'Check failed');s.textContent=d.updateAvailable?'Update available: '+d.latestVersion:'Main gate is up to date · '+d.currentVersion;b.hidden=!d.updateAvailable;f.hidden=false;t.hidden=false;f.textContent='Install '+d.latestVersion+' on finish gate';t.textContent='Install '+d.latestVersion+' on TFT display'}catch(e){s.textContent=e.message}}
-async function installUpdate(){if(!confirm('Install the update on the main gate now? The timer will restart.'))return;const s=document.getElementById('releaseStatus'),b=document.getElementById('installUpdate');b.disabled=true;s.textContent='Starting update…';try{const r=await fetch('/api/update/install',{method:'POST'}),d=await r.json();if(!r.ok)throw new Error(d.error||'Install failed');s.textContent='Downloading firmware. Main gate will restart automatically.'}catch(e){s.textContent=e.message;b.disabled=false}}
-async function installFinish(){if(!confirm('Install the latest release on the finish gate?'))return;const s=document.getElementById('status'),b=document.getElementById('installFinish');b.disabled=true;s.textContent='Preparing finish gate…';try{const r=await fetch('/api/update/install-finish',{method:'POST'}),d=await r.json();if(!r.ok)throw new Error(d.error||'Install failed');s.textContent='The main gate is downloading and sending the firmware. The finish gate will restart automatically.'}catch(e){s.textContent=e.message;b.disabled=false}}
-async function installTft(){if(!confirm('Install the latest release on the TFT display?'))return;const s=document.getElementById('status'),b=document.getElementById('installTft');b.disabled=true;s.textContent='Preparing TFT display…';try{const r=await fetch('/api/update/install-tft',{method:'POST'}),d=await r.json();if(!r.ok)throw new Error(d.error||'Install failed');s.textContent='The main gate is downloading and sending the firmware. The display will restart automatically.'}catch(e){s.textContent=e.message;b.disabled=false}}
-fetch('/api/configuration').then(r=>r.json()).then(d=>document.getElementById('installed').textContent=d.version).catch(()=>{});
+:root{color-scheme:dark}body{margin:0;background:#10151b;color:#edf3f7;font:16px system-ui,sans-serif}.app{max-width:620px;margin:auto;padding:16px}.card{background:#1a232d;border-radius:16px;padding:20px;margin:14px 0}h1{font-size:22px}h2{margin-top:0}.device-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.version{font-size:20px;font-weight:700}.state{color:#9cb0bf}.online{color:#83df9c}.offline{color:#ff9d9d}button{display:block;width:100%;box-sizing:border-box;padding:14px;margin:12px 0;font-size:16px;border:0;border-radius:10px;background:#83df9c;color:#10151b;font-weight:700}button:disabled{opacity:.45}.secondary{background:#3d5262;color:#edf3f7}.note{color:#9cb0bf;font-size:14px}a{color:#83df9c}</style></head><body><main class="app"><h1>GYMIO FIRMWARE UPDATE</h1><p><a href="/main">← Main page</a></p>
+<section class="card"><h2>Available versions</h2><p id="releaseStatus" class="note">Check GitHub to compare all connected devices.</p><button id="checkButton" onclick="checkUpdates()">Check available versions</button><button id="updateAll" onclick="updateAllDevices()" hidden>Update all devices</button></section>
+<section class="card"><div class="device-head"><h2>Main gate</h2><span id="mainState" class="state online">Online</span></div><p>Current version: <span id="mainVersion" class="version">—</span></p><button id="installMain" onclick="installDevice('main')" hidden>Update main gate</button></section>
+<section class="card"><div class="device-head"><h2>Second gate</h2><span id="finishState" class="state">Checking…</span></div><p>Current version: <span id="finishVersion" class="version">—</span></p><button id="installFinish" onclick="installDevice('finish')" hidden>Update second gate</button></section>
+<section class="card"><div class="device-head"><h2>Display</h2><span id="tftState" class="state">Checking…</span></div><p>Current version: <span id="tftVersion" class="version">—</span></p><button id="installTft" onclick="installDevice('tft')" hidden>Update display</button></section><p id="status" class="note"></p></main><script>
+const $=id=>document.getElementById(id);let release=null,busy=false;async function api(url,options){const r=await fetch(url,options),d=await r.json();if(!r.ok)throw new Error(d.error||'Request failed');return d}function renderDevice(name,data){$(name+'State').textContent=data.online?'Online':'Offline';$(name+'State').className='state '+(data.online?'online':'offline');$(name+'Version').textContent=data.version||'Unknown';const b=$(name==='main'?'installMain':name==='finish'?'installFinish':'installTft');b.hidden=!data.updateAvailable;b.disabled=busy;b.textContent='Update to '+release.latestVersion}function render(d){release=d;$('releaseStatus').textContent='Latest release: '+d.latestVersion;renderDevice('main',d.main);renderDevice('finish',d.finish);renderDevice('tft',d.tft);$('updateAll').hidden=!(d.main.updateAvailable||d.finish.updateAvailable||d.tft.updateAvailable);$('updateAll').disabled=busy;$('checkButton').disabled=busy}async function checkUpdates(){try{$('releaseStatus').textContent='Checking GitHub…';render(await api('/api/update/check',{method:'POST'}))}catch(e){$('releaseStatus').textContent=e.message}}
+async function waitRemote(){for(;;){await new Promise(r=>setTimeout(r,1200));try{const s=await api('/api/update/state');$('status').textContent=s.status;if(!s.busy)return}catch(e){}}}async function startRemote(target){await api('/api/update/install-'+target,{method:'POST'});await waitRemote()}async function installDevice(target){if(!release||!confirm('Install '+release.latestVersion+' on '+target+'?'))return;busy=true;render(release);try{if(target==='main'){await api('/api/update/install',{method:'POST'});$('status').textContent='Main gate is updating and will restart.';return}await startRemote(target);$('status').textContent='Update installed. Waiting for device status…';await new Promise(r=>setTimeout(r,2500));await checkUpdates()}catch(e){$('status').textContent=e.message}finally{busy=false;if(release)render(release)}}async function updateAllDevices(){if(!release||!confirm('Update all online devices to '+release.latestVersion+'?'))return;busy=true;render(release);try{if(release.finish.updateAvailable){$('status').textContent='Updating second gate…';await startRemote('finish')}if(release.tft.updateAvailable){$('status').textContent='Updating display…';await startRemote('tft')}if(release.main.updateAvailable){$('status').textContent='Updating main gate last…';await api('/api/update/install',{method:'POST'});return}$('status').textContent='All online devices are up to date.';await new Promise(r=>setTimeout(r,2500));await checkUpdates()}catch(e){$('status').textContent=e.message}finally{busy=false;if(release)render(release)}}fetch('/api/configuration').then(r=>r.json()).then(d=>{$('mainVersion').textContent=d.version}).catch(()=>{});
 </script></body></html>
 )HTML";
 } // namespace
@@ -90,6 +108,31 @@ void MotoWebServer::receiveEspNow(const uint8_t *, const uint8_t *data, int leng
 {
     if (instance_ == nullptr)
     {
+        return;
+    }
+
+    if (length == static_cast<int>(sizeof(DeviceStatusProtocol::Frame)))
+    {
+        DeviceStatusProtocol::Frame frame;
+        memcpy(&frame, data, sizeof(frame));
+        if (frame.magic != DeviceStatusProtocol::kMagic ||
+            frame.version != DeviceStatusProtocol::kVersion)
+            return;
+        frame.firmwareVersion[sizeof(frame.firmwareVersion) - 1] = '\0';
+        portENTER_CRITICAL(&instance_->finishGateMux_);
+        if (frame.device == DeviceStatusProtocol::Device::FinishGate)
+        {
+            strlcpy(instance_->finishFirmwareVersion_, frame.firmwareVersion,
+                    sizeof(instance_->finishFirmwareVersion_));
+            instance_->lastFinishStatusPacketMs_ = millis();
+        }
+        else if (frame.device == DeviceStatusProtocol::Device::TftDisplay)
+        {
+            strlcpy(instance_->tftFirmwareVersion_, frame.firmwareVersion,
+                    sizeof(instance_->tftFirmwareVersion_));
+            instance_->lastTftStatusPacketMs_ = millis();
+        }
+        portEXIT_CRITICAL(&instance_->finishGateMux_);
         return;
     }
 
@@ -216,6 +259,7 @@ bool MotoWebServer::begin()
     server_.on("/api/update/install", HTTP_POST, [this]() { handleInstallOnlineUpdate(); });
     server_.on("/api/update/install-finish", HTTP_POST, [this]() { handleInstallFinishOnlineUpdate(); });
     server_.on("/api/update/install-tft", HTTP_POST, [this]() { handleInstallTftOnlineUpdate(); });
+    server_.on("/api/update/state", HTTP_GET, [this]() { handleUpdateState(); });
     server_.on("/api/ota/prepare", HTTP_POST, [this]() { handlePrepareRemoteOta(); });
     server_.on(
         "/update/main", HTTP_POST,
@@ -714,13 +758,36 @@ void MotoWebServer::handleCheckForUpdates()
     String normalized = latest;
     if (normalized.startsWith("v"))
         normalized.remove(0, 1);
-    const bool available = normalized != Version::kString;
+    const bool available = isVersionOlder(Version::kString, normalized.c_str());
     latestReleaseTag_ = latest;
     onlineUpdateAvailable_ = available;
     updateModeStatus_ = available ? String("AVAILABLE ") + latest : "FIRMWARE CURRENT";
-    String response = String("{\"currentVersion\":\"") + Version::kString +
-                      "\",\"latestVersion\":\"" + latest +
-                      "\",\"updateAvailable\":" + (available ? "true}" : "false}");
+    char finishVersion[sizeof(finishFirmwareVersion_)]{};
+    char tftVersion[sizeof(tftFirmwareVersion_)]{};
+    uint32_t finishStatusMs;
+    uint32_t tftStatusMs;
+    portENTER_CRITICAL(&finishGateMux_);
+    strlcpy(finishVersion, finishFirmwareVersion_, sizeof(finishVersion));
+    strlcpy(tftVersion, tftFirmwareVersion_, sizeof(tftVersion));
+    finishStatusMs = lastFinishStatusPacketMs_;
+    tftStatusMs = lastTftStatusPacketMs_;
+    portEXIT_CRITICAL(&finishGateMux_);
+    const uint32_t nowMs = millis();
+    const bool finishOnline = isFinishGateConnected(nowMs);
+    const bool finishVersionOnline = finishStatusMs != 0 && nowMs - finishStatusMs <= 3000;
+    const bool tftOnline = tftStatusMs != 0 && nowMs - tftStatusMs <= 3000;
+    const bool finishUpdate = finishOnline &&
+                              (!finishVersionOnline || isVersionOlder(finishVersion, normalized.c_str()));
+    const bool tftUpdate = tftOnline && isVersionOlder(tftVersion, normalized.c_str());
+    String response = String("{\"latestVersion\":\"") + latest +
+                      "\",\"main\":{\"online\":true,\"version\":\"" + Version::kString +
+                      "\",\"updateAvailable\":" + (available ? "true" : "false") +
+                      "},\"finish\":{\"online\":" + (finishOnline ? "true" : "false") +
+                      ",\"version\":\"" + (finishVersionOnline ? finishVersion : "") +
+                      "\",\"updateAvailable\":" + (finishUpdate ? "true" : "false") +
+                      "},\"tft\":{\"online\":" + (tftOnline ? "true" : "false") +
+                      ",\"version\":\"" + (tftOnline ? tftVersion : "") +
+                      "\",\"updateAvailable\":" + (tftUpdate ? "true" : "false") + "}}";
     server_.send(200, "application/json", response);
 }
 
@@ -816,6 +883,19 @@ void MotoWebServer::handleInstallTftOnlineUpdate()
     lastDisplayBroadcastMs_ = 0;
     broadcastDisplayStatus();
     server_.send(202, "application/json", "{\"ok\":true}");
+}
+
+void MotoWebServer::handleUpdateState()
+{
+    if (!authenticateAdministration())
+        return;
+    String escaped = updateModeStatus_;
+    escaped.replace("\\", "\\\\");
+    escaped.replace("\"", "\\\"");
+    const bool busy = onlineUpdateScheduledAtMs_ != 0 || remoteOnlineUpdateScheduledAtMs_ != 0;
+    server_.send(200, "application/json",
+                 String("{\"busy\":") + (busy ? "true" : "false") +
+                     ",\"status\":\"" + escaped + "\"}");
 }
 
 void MotoWebServer::serviceOnlineUpdate()

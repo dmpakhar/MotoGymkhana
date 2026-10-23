@@ -5,8 +5,10 @@
 #include <esp_wifi.h>
 
 #include "config/Config.h"
+#include "config/Version.h"
 #include "ota/OtaUpdateServer.h"
 #include "protocol/DisplayStatusProtocol.h"
+#include "protocol/DeviceStatusProtocol.h"
 #include "protocol/GateControlProtocol.h"
 #include "protocol/OtaControlProtocol.h"
 #include "tft/TftHardwareConfig.h"
@@ -76,6 +78,7 @@ lgfx::LGFX_Sprite digitSprite(&display);
 OtaUpdateServer otaServer("Gymio TFT display", IPAddress(192, 168, 4, 3));
 uint32_t lastTimerUpdateMs = 0;
 uint32_t lastStatusPacketMs = 0;
+uint32_t lastDeviceStatusMs = 0;
 uint32_t timerAnchorMs = 0;
 uint32_t timerAnchorReceivedAtMs = 0;
 bool timerRunning = false;
@@ -184,6 +187,18 @@ void serviceCancelButton(uint32_t nowMs)
     }
     --commandRepeatsRemaining;
     nextCommandSendMs = nowMs + kCommandRepeatIntervalMs;
+}
+
+void sendDeviceStatus(uint32_t nowMs)
+{
+    if (!espNowReady || nowMs - lastDeviceStatusMs < 1000)
+        return;
+    lastDeviceStatusMs = nowMs;
+    DeviceStatusProtocol::Frame frame;
+    frame.device = DeviceStatusProtocol::Device::TftDisplay;
+    frame.bootId = controlBootId;
+    strlcpy(frame.firmwareVersion, Version::kString, sizeof(frame.firmwareVersion));
+    esp_now_send(kBroadcastAddress, reinterpret_cast<const uint8_t *>(&frame), sizeof(frame));
 }
 
 void drawCentered(const char *text, int32_t y, const lgfx::IFont *font)
@@ -482,6 +497,7 @@ void loop()
     serviceCancelButton(now);
     if (espNowReady)
     {
+        sendDeviceStatus(now);
         receiveStatus(now);
         serviceRadioDiscovery(now);
         if (lastStatusPacketMs != 0U && now - lastStatusPacketMs > 1500U)

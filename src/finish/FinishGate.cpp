@@ -7,9 +7,11 @@
 #include <esp_wifi.h>
 
 #include "config/Config.h"
+#include "config/Version.h"
 #include "gate/GateDetector.h"
 #include "ota/OtaUpdateServer.h"
 #include "protocol/DisplayStatusProtocol.h"
+#include "protocol/DeviceStatusProtocol.h"
 #include "protocol/FinishGateProtocol.h"
 #include "protocol/GateControlProtocol.h"
 #include "protocol/OtaControlProtocol.h"
@@ -46,6 +48,7 @@ uint32_t bootId = 0;
 uint32_t frameSequence = 0;
 uint32_t crossingCount = 0;
 uint32_t lastHeartbeatMs = 0;
+uint32_t lastDeviceStatusMs = 0;
 volatile uint32_t lastMainPacketMs = 0;
 volatile bool mainTimerReady = false;
 volatile bool mainTimerRunning = false;
@@ -133,6 +136,18 @@ void serviceControlCommand(uint32_t nowMs)
                  reinterpret_cast<const uint8_t *>(&command), sizeof(command));
     --controlRepeatsRemaining;
     nextControlSendMs = nowMs + kCommandRepeatIntervalMs;
+}
+
+void sendDeviceStatus(uint32_t nowMs)
+{
+    if (!espNowReady || nowMs - lastDeviceStatusMs < 1000)
+        return;
+    lastDeviceStatusMs = nowMs;
+    DeviceStatusProtocol::Frame frame;
+    frame.device = DeviceStatusProtocol::Device::FinishGate;
+    frame.bootId = bootId;
+    strlcpy(frame.firmwareVersion, Version::kString, sizeof(frame.firmwareVersion));
+    esp_now_send(kBroadcastAddress, reinterpret_cast<const uint8_t *>(&frame), sizeof(frame));
 }
 
 void updateIndicators(uint32_t nowMs)
@@ -554,6 +569,7 @@ void loop()
         lastHeartbeatMs = nowMs;
         sendHeartbeat();
     }
+    sendDeviceStatus(nowMs);
     updateIndicators(nowMs);
     delay(2);
 }

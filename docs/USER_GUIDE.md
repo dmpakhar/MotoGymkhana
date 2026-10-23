@@ -295,6 +295,12 @@ the main-gate image, writes the inactive OTA slot, and restarts automatically.
 The timer must be `READY`. Version 0.4.1 or newer must be installed once before
 this one-button path is available for later releases.
 
+The update center shows separate panels for the main gate, second gate, and TFT
+display. Connected devices report their installed versions over ESP-NOW. An
+update button is shown only when that device is older than the latest release.
+**Update all devices** updates the second gate and display first, then restarts
+the main gate last.
+
 - Main-gate updates require no local firmware file: use **Check for updates**
   and then **Install update**.
 - For the finish gate, use **Check for updates** and then **Install latest on

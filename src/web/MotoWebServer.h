@@ -97,6 +97,10 @@ private:
     FirmwareTargetValidator otaTargetValidator_{FirmwareIdentity::kMarker};
     portMUX_TYPE finishGateMux_ = portMUX_INITIALIZER_UNLOCKED;
     volatile uint32_t lastFinishPacketMs_ = 0;
+    volatile uint32_t lastFinishStatusPacketMs_ = 0;
+    volatile uint32_t lastTftStatusPacketMs_ = 0;
+    char finishFirmwareVersion_[12]{};
+    char tftFirmwareVersion_[12]{};
     volatile uint32_t finishBootId_ = 0;
     volatile uint32_t finishCrossingCount_ = 0;
     volatile uint8_t finishFlags_ = 0;
@@ -127,6 +131,7 @@ private:
     void handleInstallOnlineUpdate();
     void handleInstallFinishOnlineUpdate();
     void handleInstallTftOnlineUpdate();
+    void handleUpdateState();
     void handlePrepareRemoteOta();
     void handleMainOtaComplete();
     void handleMainOtaUpload();
