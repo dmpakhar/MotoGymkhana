@@ -2,6 +2,16 @@
 
 All notable changes are documented here. Versions follow Semantic Versioning.
 
+## 0.4.4 - 2026-10-23
+
+### Added
+
+- One-button TFT display update installation from the main-gate update center.
+
+### Changed
+
+- Finish-gate and TFT updates now share one target-aware streaming OTA relay.
+
 ## 0.4.3 - 2026-10-23
 
 ### Added

@@ -74,11 +74,11 @@ constexpr char kOtaPage[] PROGMEM = R"HTML(
 :root{color-scheme:dark}body{margin:0;background:#10151b;color:#edf3f7;font:16px system-ui,sans-serif}.app{max-width:620px;margin:auto;padding:16px}.card{background:#1a232d;border-radius:16px;padding:20px;margin:14px 0}h1{font-size:22px}button,input{display:block;width:100%;box-sizing:border-box;padding:14px;margin:12px 0;font-size:16px}button{border:0;border-radius:10px;background:#83df9c;color:#10151b;font-weight:700}.secondary{background:#3d5262;color:#edf3f7}.note{color:#9cb0bf;font-size:14px}a{color:#83df9c}</style></head><body><main class="app"><h1>GYMIO FIRMWARE UPDATE</h1><p><a href="/main">← Main page</a></p>
 <section class="card"><h2>Release</h2><p>Installed on main gate: <strong id="installed">—</strong></p><p id="releaseStatus" class="note">Press the button to check GitHub.</p><button onclick="checkUpdates()">Check for updates</button><button id="installUpdate" onclick="installUpdate()" hidden>Install on main gate</button></section>
 <section class="card"><h2>Finish gate</h2><p class="note">The main gate downloads and sends the matching firmware automatically.</p><button id="installFinish" onclick="installFinish()" hidden>Install latest on finish gate</button></section>
-<section class="card"><h2>TFT display</h2><p class="note">The display temporarily joins Gymio Wi-Fi at 192.168.4.3 for three minutes.</p><button onclick="prepare('tft')">Prepare TFT display</button><a id="tftLink" href="http://192.168.4.3/update" hidden>Open TFT updater</a></section><p id="status" class="note"></p></main><script>
-async function checkUpdates(){const s=document.getElementById('releaseStatus'),b=document.getElementById('installUpdate'),f=document.getElementById('installFinish');b.hidden=true;f.hidden=true;s.textContent='Checking GitHub…';try{const r=await fetch('/api/update/check',{method:'POST'}),d=await r.json();if(!r.ok)throw new Error(d.error||'Check failed');s.textContent=d.updateAvailable?'Update available: '+d.latestVersion:'Main gate is up to date · '+d.currentVersion;b.hidden=!d.updateAvailable;f.hidden=false;f.textContent='Install '+d.latestVersion+' on finish gate'}catch(e){s.textContent=e.message}}
+<section class="card"><h2>TFT display</h2><p class="note">The main gate downloads and sends the matching firmware automatically.</p><button id="installTft" onclick="installTft()" hidden>Install latest on TFT display</button></section><p id="status" class="note"></p></main><script>
+async function checkUpdates(){const s=document.getElementById('releaseStatus'),b=document.getElementById('installUpdate'),f=document.getElementById('installFinish'),t=document.getElementById('installTft');b.hidden=true;f.hidden=true;t.hidden=true;s.textContent='Checking GitHub…';try{const r=await fetch('/api/update/check',{method:'POST'}),d=await r.json();if(!r.ok)throw new Error(d.error||'Check failed');s.textContent=d.updateAvailable?'Update available: '+d.latestVersion:'Main gate is up to date · '+d.currentVersion;b.hidden=!d.updateAvailable;f.hidden=false;t.hidden=false;f.textContent='Install '+d.latestVersion+' on finish gate';t.textContent='Install '+d.latestVersion+' on TFT display'}catch(e){s.textContent=e.message}}
 async function installUpdate(){if(!confirm('Install the update on the main gate now? The timer will restart.'))return;const s=document.getElementById('releaseStatus'),b=document.getElementById('installUpdate');b.disabled=true;s.textContent='Starting update…';try{const r=await fetch('/api/update/install',{method:'POST'}),d=await r.json();if(!r.ok)throw new Error(d.error||'Install failed');s.textContent='Downloading firmware. Main gate will restart automatically.'}catch(e){s.textContent=e.message;b.disabled=false}}
 async function installFinish(){if(!confirm('Install the latest release on the finish gate?'))return;const s=document.getElementById('status'),b=document.getElementById('installFinish');b.disabled=true;s.textContent='Preparing finish gate…';try{const r=await fetch('/api/update/install-finish',{method:'POST'}),d=await r.json();if(!r.ok)throw new Error(d.error||'Install failed');s.textContent='The main gate is downloading and sending the firmware. The finish gate will restart automatically.'}catch(e){s.textContent=e.message;b.disabled=false}}
-async function prepare(target){const status=document.getElementById('status');status.textContent='Sending maintenance command…';const r=await fetch('/api/ota/prepare?target='+target,{method:'POST'});const data=await r.json();if(!r.ok){status.textContent=data.error||'Failed';return}status.textContent='Device is joining Wi-Fi. Wait about 3 seconds, then open its updater.';setTimeout(()=>document.getElementById(target+'Link').hidden=false,3000)}
+async function installTft(){if(!confirm('Install the latest release on the TFT display?'))return;const s=document.getElementById('status'),b=document.getElementById('installTft');b.disabled=true;s.textContent='Preparing TFT display…';try{const r=await fetch('/api/update/install-tft',{method:'POST'}),d=await r.json();if(!r.ok)throw new Error(d.error||'Install failed');s.textContent='The main gate is downloading and sending the firmware. The display will restart automatically.'}catch(e){s.textContent=e.message;b.disabled=false}}
 fetch('/api/configuration').then(r=>r.json()).then(d=>document.getElementById('installed').textContent=d.version).catch(()=>{});
 </script></body></html>
 )HTML";
@@ -215,6 +215,7 @@ bool MotoWebServer::begin()
     server_.on("/api/update/check", HTTP_POST, [this]() { handleCheckForUpdates(); });
     server_.on("/api/update/install", HTTP_POST, [this]() { handleInstallOnlineUpdate(); });
     server_.on("/api/update/install-finish", HTTP_POST, [this]() { handleInstallFinishOnlineUpdate(); });
+    server_.on("/api/update/install-tft", HTTP_POST, [this]() { handleInstallTftOnlineUpdate(); });
     server_.on("/api/ota/prepare", HTTP_POST, [this]() { handlePrepareRemoteOta(); });
     server_.on(
         "/update/main", HTTP_POST,
@@ -391,7 +392,7 @@ void MotoWebServer::handleClient()
     server_.handleClient();
     serviceStationConnection();
     serviceOnlineUpdate();
-    serviceFinishOnlineUpdate();
+    serviceRemoteOnlineUpdate();
     if (otaRestartAtMs_ != 0 && static_cast<int32_t>(millis() - otaRestartAtMs_) >= 0)
     {
         ESP.restart();
@@ -768,7 +769,7 @@ void MotoWebServer::handleInstallFinishOnlineUpdate()
         return;
     }
     if (status_.timerState != TimerState::Ready || sensorSetupActive_ || isFinishGateSetupActive() ||
-        onlineUpdateScheduledAtMs_ != 0 || finishOnlineUpdateScheduledAtMs_ != 0)
+        onlineUpdateScheduledAtMs_ != 0 || remoteOnlineUpdateScheduledAtMs_ != 0)
     {
         server_.send(409, "application/json", "{\"error\":\"Update requires READY state\"}");
         return;
@@ -779,7 +780,39 @@ void MotoWebServer::handleInstallFinishOnlineUpdate()
     otaTarget_ = OtaControlProtocol::Target::FinishGate;
     otaCommandId_ = esp_random();
     otaCommandUntilMs_ = millis() + 5000;
-    finishOnlineUpdateScheduledAtMs_ = millis() + 6500;
+    remoteOnlineUpdateScheduledAtMs_ = millis() + 6500;
+    lastDisplayBroadcastMs_ = 0;
+    broadcastDisplayStatus();
+    server_.send(202, "application/json", "{\"ok\":true}");
+}
+
+void MotoWebServer::handleInstallTftOnlineUpdate()
+{
+    if (!authenticateAdministration())
+        return;
+    if (latestReleaseTag_.isEmpty())
+    {
+        server_.send(409, "application/json", "{\"error\":\"Check for updates first\"}");
+        return;
+    }
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        server_.send(503, "application/json", "{\"error\":\"Home Wi-Fi is offline\"}");
+        return;
+    }
+    if (status_.timerState != TimerState::Ready || sensorSetupActive_ || isFinishGateSetupActive() ||
+        onlineUpdateScheduledAtMs_ != 0 || remoteOnlineUpdateScheduledAtMs_ != 0)
+    {
+        server_.send(409, "application/json", "{\"error\":\"Update requires READY state\"}");
+        return;
+    }
+
+    updateModeUntilMs_ = millis() + Config::kOtaMaintenanceTimeoutMs;
+    updateModeStatus_ = "PREPARING TFT DISPLAY...";
+    otaTarget_ = OtaControlProtocol::Target::TftDisplay;
+    otaCommandId_ = esp_random();
+    otaCommandUntilMs_ = millis() + 5000;
+    remoteOnlineUpdateScheduledAtMs_ = millis() + 6500;
     lastDisplayBroadcastMs_ = 0;
     broadcastDisplayStatus();
     server_.send(202, "application/json", "{\"ok\":true}");
@@ -872,16 +905,21 @@ void MotoWebServer::serviceOnlineUpdate()
     otaRestartAtMs_ = millis() + 1000;
 }
 
-void MotoWebServer::serviceFinishOnlineUpdate()
+void MotoWebServer::serviceRemoteOnlineUpdate()
 {
-    if (finishOnlineUpdateScheduledAtMs_ == 0 ||
-        static_cast<int32_t>(millis() - finishOnlineUpdateScheduledAtMs_) < 0)
+    if (remoteOnlineUpdateScheduledAtMs_ == 0 ||
+        static_cast<int32_t>(millis() - remoteOnlineUpdateScheduledAtMs_) < 0)
         return;
-    finishOnlineUpdateScheduledAtMs_ = 0;
-    updateModeStatus_ = "DOWNLOADING FINISH FW...";
+    remoteOnlineUpdateScheduledAtMs_ = 0;
+    const bool isFinish = otaTarget_ == OtaControlProtocol::Target::FinishGate;
+    const char *deviceName = isFinish ? "FINISH GATE" : "TFT DISPLAY";
+    const char *assetName = isFinish ? "gymio-finish-gate-s3-mini.bin" : "gymio-tft-c3-mini-1.bin";
+    const char *targetMarker = isFinish ? "GYMIO_TARGET=finish-gate-s3-mini" : "GYMIO_TARGET=tft-c3-mini-1";
+    const IPAddress deviceAddress(192, 168, 4, isFinish ? 2 : 3);
+    updateModeStatus_ = String("DOWNLOADING ") + deviceName + " FW...";
 
     const String url = String("https://github.com/dmpakhar/MotoGymkhana/releases/download/") +
-                       latestReleaseTag_ + "/gymio-finish-gate-s3-mini.bin";
+                       latestReleaseTag_ + "/" + assetName;
     WiFiClientSecure githubClient;
     githubClient.setInsecure();
     HTTPClient http;
@@ -889,43 +927,43 @@ void MotoWebServer::serviceFinishOnlineUpdate()
     http.setTimeout(15000);
     if (!http.begin(githubClient, url))
     {
-        updateModeStatus_ = "FINISH DOWNLOAD INIT FAILED";
+        updateModeStatus_ = String(deviceName) + " DOWNLOAD INIT FAILED";
         return;
     }
     const int code = http.GET();
     const int contentLength = http.getSize();
     if (code != HTTP_CODE_OK || contentLength <= 0)
     {
-        updateModeStatus_ = code == HTTP_CODE_OK ? "FINISH SIZE UNKNOWN" : String("FINISH DOWNLOAD HTTP ") + code;
+        updateModeStatus_ = code == HTTP_CODE_OK ? String(deviceName) + " SIZE UNKNOWN" : String(deviceName) + " DOWNLOAD HTTP " + code;
         http.end();
         return;
     }
 
-    WiFiClient finishClient;
-    finishClient.setTimeout(15000);
-    if (!finishClient.connect(IPAddress(192, 168, 4, 2), 80))
+    WiFiClient deviceClient;
+    deviceClient.setTimeout(15000);
+    if (!deviceClient.connect(deviceAddress, 80))
     {
-        updateModeStatus_ = "FINISH GATE CONNECTION FAILED";
+        updateModeStatus_ = String(deviceName) + " CONNECTION FAILED";
         http.end();
         return;
     }
 
-    const String boundary = "----GymioFinishOtaBoundary";
+    const String boundary = "----GymioRemoteOtaBoundary";
     const String prefix = "--" + boundary +
                           "\r\nContent-Disposition: form-data; name=\"firmware\"; filename=\"firmware.bin\""
                           "\r\nContent-Type: application/octet-stream\r\n\r\n";
     const String suffix = "\r\n--" + boundary + "--\r\n";
     const size_t requestLength = prefix.length() + static_cast<size_t>(contentLength) + suffix.length();
-    String headers = String("POST /update HTTP/1.1\r\nHost: 192.168.4.2\r\n") +
+    String headers = String("POST /update HTTP/1.1\r\nHost: ") + deviceAddress.toString() + "\r\n" +
                      "Authorization: Basic YWRtaW46Z3ltaW8tdXBkYXRl\r\n" +
                      "Content-Type: multipart/form-data; boundary=" + boundary + "\r\n" +
                      "Content-Length: " + String(requestLength) + "\r\nConnection: close\r\n\r\n";
 
-    auto writeAll = [&finishClient](const uint8_t *data, size_t length) {
+    auto writeAll = [&deviceClient](const uint8_t *data, size_t length) {
         size_t sent = 0;
         while (sent < length)
         {
-            const size_t count = finishClient.write(data + sent, length - sent);
+            const size_t count = deviceClient.write(data + sent, length - sent);
             if (count == 0)
                 return false;
             sent += count;
@@ -936,11 +974,11 @@ void MotoWebServer::serviceFinishOnlineUpdate()
     bool failed = !writeAll(reinterpret_cast<const uint8_t *>(headers.c_str()), headers.length()) ||
                   !writeAll(reinterpret_cast<const uint8_t *>(prefix.c_str()), prefix.length());
     WiFiClient *download = http.getStreamPtr();
-    FirmwareTargetValidator finishValidator("GYMIO_TARGET=finish-gate-s3-mini");
+    FirmwareTargetValidator targetValidator(targetMarker);
     uint8_t buffer[1024];
     size_t forwarded = 0;
     uint32_t lastDataMs = millis();
-    updateModeStatus_ = "SENDING TO FINISH GATE...";
+    updateModeStatus_ = String("SENDING TO ") + deviceName + "...";
     while (!failed && forwarded < static_cast<size_t>(contentLength))
     {
         const size_t available = download->available();
@@ -962,7 +1000,7 @@ void MotoWebServer::serviceFinishOnlineUpdate()
             break;
         }
         lastDataMs = millis();
-        finishValidator.consume(buffer, static_cast<size_t>(received));
+        targetValidator.consume(buffer, static_cast<size_t>(received));
         if (!writeAll(buffer, static_cast<size_t>(received)))
         {
             failed = true;
@@ -975,17 +1013,17 @@ void MotoWebServer::serviceFinishOnlineUpdate()
 
     if (!failed)
         failed = !writeAll(reinterpret_cast<const uint8_t *>(suffix.c_str()), suffix.length());
-    if (failed || forwarded != static_cast<size_t>(contentLength) || !finishValidator.found())
+    if (failed || forwarded != static_cast<size_t>(contentLength) || !targetValidator.found())
     {
-        finishClient.stop();
-        updateModeStatus_ = finishValidator.found() ? "FINISH TRANSFER FAILED" : "INVALID FINISH FIRMWARE";
+        deviceClient.stop();
+        updateModeStatus_ = targetValidator.found() ? String(deviceName) + " TRANSFER FAILED" : String("INVALID ") + deviceName + " FIRMWARE";
         return;
     }
 
-    const String responseLine = finishClient.readStringUntil('\n');
+    const String responseLine = deviceClient.readStringUntil('\n');
     const bool installed = responseLine.indexOf(" 200 ") >= 0;
-    finishClient.stop();
-    updateModeStatus_ = installed ? "FINISH UPDATE INSTALLED" : "FINISH UPDATE REJECTED";
+    deviceClient.stop();
+    updateModeStatus_ = String(deviceName) + (installed ? " UPDATE INSTALLED" : " UPDATE REJECTED");
 }
 
 void MotoWebServer::handlePrepareRemoteOta()

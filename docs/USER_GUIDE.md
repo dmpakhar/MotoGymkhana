@@ -300,13 +300,13 @@ this one-button path is available for later releases.
 - For the finish gate, use **Check for updates** and then **Install latest on
   finish gate**. The main gate prepares the finish gate, downloads the matching
   image, streams it over the local Gymio network, and the finish gate restarts.
-- For the TFT, press **Prepare TFT display**, wait about three seconds, and open
-  `192.168.4.3/update`.
+- For the TFT, use **Check for updates** and then **Install latest on TFT
+  display**. The main gate performs the same automatic download, validated
+  transfer, and restart sequence.
 
-For finish-gate and TFT uploads, select only the `firmware.bin` built for that
-device. Gymio checks the embedded target identity and rejects mismatched images.
-Do not remove power during an update. A successful device restarts
-automatically; an unused remote maintenance page closes after three minutes.
+Gymio checks the embedded target identity and rejects mismatched images. Do not
+remove power during an update. A successful device restarts automatically; an
+unused remote maintenance mode closes after three minutes.
 
 ## Data retention and limits
 
