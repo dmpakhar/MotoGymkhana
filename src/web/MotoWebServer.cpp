@@ -91,13 +91,14 @@ const $=id=>document.getElementById(id);let loaded=false;async function request(
 
 constexpr char kOtaPage[] PROGMEM = R"HTML(
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gymio firmware update</title><style>
-:root{color-scheme:dark}body{margin:0;background:#10151b;color:#edf3f7;font:16px system-ui,sans-serif}.app{max-width:620px;margin:auto;padding:16px}.card{background:#1a232d;border-radius:16px;padding:20px;margin:14px 0}h1{font-size:22px}h2{margin-top:0}.device-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.version{font-size:20px;font-weight:700}.state{color:#9cb0bf}.online{color:#83df9c}.offline{color:#ff9d9d}button{display:block;width:100%;box-sizing:border-box;padding:14px;margin:12px 0;font-size:16px;border:0;border-radius:10px;background:#83df9c;color:#10151b;font-weight:700}button:disabled{opacity:.45}.secondary{background:#3d5262;color:#edf3f7}.note{color:#9cb0bf;font-size:14px}a{color:#83df9c}</style></head><body><main class="app"><h1>GYMIO FIRMWARE UPDATE</h1><p><a href="/main">← Main page</a></p>
+:root{color-scheme:dark}body{margin:0;background:#10151b;color:#edf3f7;font:16px system-ui,sans-serif}.app{max-width:620px;margin:auto;padding:16px}.card{background:#1a232d;border-radius:16px;padding:20px;margin:14px 0}h1{font-size:22px}h2{margin-top:0}.device-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.version{font-size:20px;font-weight:700}.state{color:#9cb0bf}.online{color:#83df9c}.offline{color:#ff9d9d}[hidden]{display:none!important}button{display:block;width:100%;box-sizing:border-box;padding:14px;margin:12px 0;font-size:16px;border:0;border-radius:10px;background:#83df9c;color:#10151b;font-weight:700}button:disabled{opacity:.45}.secondary{background:#3d5262;color:#edf3f7}.note{color:#9cb0bf;font-size:14px}a{color:#83df9c}</style></head><body><main class="app"><h1>GYMIO FIRMWARE UPDATE</h1><p><a href="/main">← Main page</a></p>
 <section class="card"><h2>Available versions</h2><p id="releaseStatus" class="note">Check GitHub to compare all connected devices.</p><button id="checkButton" onclick="checkUpdates()">Check available versions</button><button id="updateAll" onclick="updateAllDevices()" hidden>Update all devices</button></section>
 <section class="card"><div class="device-head"><h2>Main gate</h2><span id="mainState" class="state online">Online</span></div><p>Current version: <span id="mainVersion" class="version">—</span></p><button id="installMain" onclick="installDevice('main')" hidden>Update main gate</button></section>
 <section class="card"><div class="device-head"><h2>Second gate</h2><span id="finishState" class="state">Checking…</span></div><p>Current version: <span id="finishVersion" class="version">—</span></p><button id="installFinish" onclick="installDevice('finish')" hidden>Update second gate</button></section>
 <section class="card"><div class="device-head"><h2>Display</h2><span id="tftState" class="state">Checking…</span></div><p>Current version: <span id="tftVersion" class="version">—</span></p><button id="installTft" onclick="installDevice('tft')" hidden>Update display</button></section><p id="status" class="note"></p></main><script>
-const $=id=>document.getElementById(id);let release=null,busy=false;async function api(url,options){const r=await fetch(url,options),d=await r.json();if(!r.ok)throw new Error(d.error||'Request failed');return d}function renderDevice(name,data){$(name+'State').textContent=data.online?'Online':'Offline';$(name+'State').className='state '+(data.online?'online':'offline');$(name+'Version').textContent=data.version||'Unknown';const b=$(name==='main'?'installMain':name==='finish'?'installFinish':'installTft');b.hidden=!data.updateAvailable;b.disabled=busy;b.textContent='Update to '+release.latestVersion}function render(d){release=d;$('releaseStatus').textContent='Latest release: '+d.latestVersion;renderDevice('main',d.main);renderDevice('finish',d.finish);renderDevice('tft',d.tft);$('updateAll').hidden=!(d.main.updateAvailable||d.finish.updateAvailable||d.tft.updateAvailable);$('updateAll').disabled=busy;$('checkButton').disabled=busy}async function checkUpdates(){try{$('releaseStatus').textContent='Checking GitHub…';render(await api('/api/update/check',{method:'POST'}))}catch(e){$('releaseStatus').textContent=e.message}}
+const $=id=>document.getElementById(id);let release=null,busy=false;async function api(url,options){const r=await fetch(url,options),d=await r.json();if(!r.ok)throw new Error(d.error||'Request failed');return d}function renderLocalDevice(name,data){$(name+'State').textContent=data.online?'Online':'Offline';$(name+'State').className='state '+(data.online?'online':'offline');$(name+'Version').textContent=data.version||'Unknown'}function renderDevice(name,data){renderLocalDevice(name,data);const b=$(name==='main'?'installMain':name==='finish'?'installFinish':'installTft');b.hidden=!data.updateAvailable;b.disabled=busy;b.textContent='Update to '+release.latestVersion}function render(d){release=d;$('releaseStatus').textContent='Latest release: '+d.latestVersion;renderDevice('main',d.main);renderDevice('finish',d.finish);renderDevice('tft',d.tft);$('updateAll').hidden=!(d.main.updateAvailable||d.finish.updateAvailable||d.tft.updateAvailable);$('updateAll').disabled=busy;$('checkButton').disabled=busy}async function loadDevices(){try{const d=await api('/api/update/devices');renderLocalDevice('main',d.main);renderLocalDevice('finish',d.finish);renderLocalDevice('tft',d.tft)}catch(e){$('status').textContent=e.message}}async function checkUpdates(){try{$('releaseStatus').textContent='Checking GitHub…';render(await api('/api/update/check',{method:'POST'}))}catch(e){$('releaseStatus').textContent=e.message}}
 async function waitRemote(){for(;;){await new Promise(r=>setTimeout(r,1200));try{const s=await api('/api/update/state');$('status').textContent=s.status;if(!s.busy)return}catch(e){}}}async function startRemote(target){await api('/api/update/install-'+target,{method:'POST'});await waitRemote()}async function installDevice(target){if(!release||!confirm('Install '+release.latestVersion+' on '+target+'?'))return;busy=true;render(release);try{if(target==='main'){await api('/api/update/install',{method:'POST'});$('status').textContent='Main gate is updating and will restart.';return}await startRemote(target);$('status').textContent='Update installed. Waiting for device status…';await new Promise(r=>setTimeout(r,2500));await checkUpdates()}catch(e){$('status').textContent=e.message}finally{busy=false;if(release)render(release)}}async function updateAllDevices(){if(!release||!confirm('Update all online devices to '+release.latestVersion+'?'))return;busy=true;render(release);try{if(release.finish.updateAvailable){$('status').textContent='Updating second gate…';await startRemote('finish')}if(release.tft.updateAvailable){$('status').textContent='Updating display…';await startRemote('tft')}if(release.main.updateAvailable){$('status').textContent='Updating main gate last…';await api('/api/update/install',{method:'POST'});return}$('status').textContent='All online devices are up to date.';await new Promise(r=>setTimeout(r,2500));await checkUpdates()}catch(e){$('status').textContent=e.message}finally{busy=false;if(release)render(release)}}fetch('/api/configuration').then(r=>r.json()).then(d=>{$('mainVersion').textContent=d.version}).catch(()=>{});
+loadDevices();setInterval(loadDevices,2000);
 </script></body></html>
 )HTML";
 } // namespace
@@ -256,6 +257,7 @@ bool MotoWebServer::begin()
     server_.on("/api/configuration/wifi", HTTP_DELETE, [this]() { handleDisconnectWifi(); });
     server_.on("/api/configuration/security", HTTP_POST, [this]() { handleSaveSecurityConfiguration(); });
     server_.on("/api/update/check", HTTP_POST, [this]() { handleCheckForUpdates(); });
+    server_.on("/api/update/devices", HTTP_GET, [this]() { handleUpdateDevices(); });
     server_.on("/api/update/install", HTTP_POST, [this]() { handleInstallOnlineUpdate(); });
     server_.on("/api/update/install-finish", HTTP_POST, [this]() { handleInstallFinishOnlineUpdate(); });
     server_.on("/api/update/install-tft", HTTP_POST, [this]() { handleInstallTftOnlineUpdate(); });
@@ -703,6 +705,32 @@ void MotoWebServer::handleOtaPage()
     updateModeStatus_ = WiFi.status() == WL_CONNECTED ? "READY FOR UPDATE" : "HOME WIFI OFFLINE";
     server_.sendHeader("Cache-Control", "no-store");
     server_.send_P(200, "text/html", kOtaPage);
+}
+
+void MotoWebServer::handleUpdateDevices()
+{
+    if (!authenticateAdministration())
+        return;
+    char finishVersion[sizeof(finishFirmwareVersion_)]{};
+    char tftVersion[sizeof(tftFirmwareVersion_)]{};
+    uint32_t finishStatusMs;
+    uint32_t tftStatusMs;
+    portENTER_CRITICAL(&finishGateMux_);
+    strlcpy(finishVersion, finishFirmwareVersion_, sizeof(finishVersion));
+    strlcpy(tftVersion, tftFirmwareVersion_, sizeof(tftVersion));
+    finishStatusMs = lastFinishStatusPacketMs_;
+    tftStatusMs = lastTftStatusPacketMs_;
+    portEXIT_CRITICAL(&finishGateMux_);
+    const uint32_t nowMs = millis();
+    const bool finishOnline = isFinishGateConnected(nowMs);
+    const bool finishVersionOnline = finishStatusMs != 0 && nowMs - finishStatusMs <= 3000;
+    const bool tftOnline = tftStatusMs != 0 && nowMs - tftStatusMs <= 3000;
+    String response = String("{\"main\":{\"online\":true,\"version\":\"") + Version::kString +
+                      "\"},\"finish\":{\"online\":" + (finishOnline ? "true" : "false") +
+                      ",\"version\":\"" + (finishVersionOnline ? finishVersion : "") +
+                      "\"},\"tft\":{\"online\":" + (tftOnline ? "true" : "false") +
+                      ",\"version\":\"" + (tftOnline ? tftVersion : "") + "\"}}";
+    server_.send(200, "application/json", response);
 }
 
 void MotoWebServer::handleCheckForUpdates()

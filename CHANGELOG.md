@@ -2,6 +2,15 @@
 
 All notable changes are documented here. Versions follow Semantic Versioning.
 
+## 0.5.1 - 2026-10-23
+
+### Fixed
+
+- Device versions now load immediately when the update page opens and refresh
+  periodically without requiring a GitHub release check.
+- Update controls now remain hidden until a newer compatible release is
+  confirmed, including browsers that override the default `hidden` styling.
+
 ## 0.5.0 - 2026-10-23
 
 ### Added

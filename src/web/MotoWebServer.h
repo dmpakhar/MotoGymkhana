@@ -128,6 +128,7 @@ private:
     void handleDisconnectWifi();
     void handleSaveSecurityConfiguration();
     void handleCheckForUpdates();
+    void handleUpdateDevices();
     void handleInstallOnlineUpdate();
     void handleInstallFinishOnlineUpdate();
     void handleInstallTftOnlineUpdate();
